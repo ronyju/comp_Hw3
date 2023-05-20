@@ -6,6 +6,7 @@
 using namespace std;
 typedef enum {WHILE, IF, ELSE, FUNC, REGULAR, GLOBAL} ScopeType;
 #define NOT_FOUND nullptr
+#define NA -99999
 /* ------------------------------- Type ------------------------------- */
 class Type {
 protected:
@@ -43,14 +44,15 @@ public:
     string GetName() {return name; }
     Type GetType() { return type; }
     int GetOffset() { return offset; }
+    void SetOffset(int new_offset) { offset = new_offset; }
+    bool IsFunc () { return type.IsFunc(); }
     string ToString();
 };
 
 class SymbolTable {
-protected:
     //OREN - we are not using pointers cuz we are lazy, just like we did in OS last semester...
-    vector<SymbolTableElement> table_vector;
 public:
+    vector<SymbolTableElement> table_vector;
     SymbolTable() = default;
     void AddToTable (SymbolTableElement element) { table_vector.push_back(element); }
     void AddToTable (string name, Type type, int offset) { SymbolTableElement element (name, type, offset); AddToTable (element); }
@@ -80,9 +82,10 @@ class ScopeStack {
 
 public:
     list<Scope> scopes_stack;
-    ScopeStack() {} //TODO: OREN for now there is a need to OpenNewScope for the main scope
+    list<int> offset_stack; //TODO: OREN I made sure to update the offset like in the tutorial, and update the var/func BUT I didnt added the aruments as negative offset yet. didnt know when and how it should be done
+    ScopeStack() {} //TODO: OREN for now there is a need to OpenNewScope for the first scope
     void AddSymbolToCurrentScope(SymbolTableElement element);
-    void AddSymbolToCurrentScope(string name, Type type, int offset);
+    void AddSymbolToCurrentScope(string name, Type type, int offset = -1);
     void PushNewScope(ScopeType scope_type);
     void PopScope();
     SymbolTableElement* SearchInAllScopesByName(string name, bool* found);

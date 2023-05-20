@@ -87,22 +87,49 @@ string Scope::ScopeTypeStr() {
 }
 void ScopeStack::AddSymbolToCurrentScope(string name, Type type, int offset) {
     if (scopes_stack.empty()) { cout<< "ERROR trying to add to current scope when there is no scopes! "; return; }
+    if (!type.IsFunc()) {
+        int current_offset = offset_stack.front();
+        offset_stack.pop_front();
+        offset = current_offset;
+        current_offset ++;
+        offset_stack.push_front(current_offset);
+    } else {
+        offset = NA;
+    }
     Scope* cur_scope = &scopes_stack.front();
     cur_scope->AddToScope(name, type, offset);
 }
 void ScopeStack::AddSymbolToCurrentScope(SymbolTableElement element) {
     if (scopes_stack.empty()) { cout<< "ERROR trying to add to current scope when there is no scopes! "; return; }
+    if (!element.IsFunc()) {
+        int current_offset = offset_stack.front();
+        offset_stack.pop_front();
+        element.SetOffset(current_offset);
+        current_offset ++;
+        offset_stack.push_front(current_offset);
+    } else {
+        element.SetOffset(NA);
+    }
     Scope* cur_scope = &scopes_stack.front(); // this is a copy!
     cur_scope->AddToScope(element);
+
 }
 void ScopeStack::PushNewScope(ScopeType scope_type) {
     // meaning add a new scope with empty table.
+    if (scopes_stack.empty()) {// this is the first scope
+        offset_stack.push_front(0);
+    } else {
+        int cur_offset_in_stack = offset_stack.front();
+        offset_stack.push_back(cur_offset_in_stack);
+    }
     Scope new_scope (scope_type);
     scopes_stack.push_front(new_scope);
+
 }
 void ScopeStack::PopScope() {
     // meaning remove the last scope.
     scopes_stack.pop_front();
+    offset_stack.pop_front();
 }
 SymbolTableElement* ScopeStack::SearchInAllScopesByName(string name, bool* found) {
     if (scopes_stack.empty()) {
