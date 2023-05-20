@@ -1,0 +1,210 @@
+//declerations
+%{
+    #include <iostream>
+    #include "output.hpp"
+
+    int yylex();
+    void yyerror(const char*);
+    extern int yylineno;
+
+// RONY for debug remove before submiting :
+//    #define YYERROR_VERBOSE 1 
+//    #define YYDEBUG 1
+%}
+
+// The roles here from the tutorial:
+// left tokens (reduce rather than shift)
+  
+// right tokens (shift rather than reduce)
+  // example: a^b^c ,  b : a ? b
+
+// the last role is the preferable, that will take in acount only %left, %right and %nonassoc. It wont include %token
+
+
+%token OVERRIDE
+
+%token TRUE
+%token FALSE
+
+%token RETURN
+%token IF
+%token ELSE
+
+%token WHILE
+%token BREAK
+
+%token CONTINUE
+
+%token SC
+%token COMMA
+
+%token ID
+%token NUM
+%token STRING
+
+%token VOID
+%token INT
+%token BYTE
+%token B
+%token BOOL
+
+%right ASSIGN                   //Associativity - right-to-left
+%left OR                        //Associativity - left to right 
+%left AND                       //Associativity - left to right 
+
+//%left       RELOP //relop was divided to relational and equality, relational is in higher priority than equality 
+%left       EQUALITY            //Associativity - left to right 
+%left       RELATIONAL          //Associativity - left to right
+
+
+//%left       BINOP  //binop was divided to additive and multiplicative, multiplicative is in higher priority than additive
+%left       ADDITIVE            //Associativity - left to right 
+%left       MULTIPLICATIVE      //Associativity - left to right 
+
+
+%right NOT     // 'NOT' must be here - this was checked  
+
+%left LPAREN 
+%left RPAREN
+%left LBRACE
+%left RBRACE
+
+
+%%
+//rules
+Program     : Funcs                                                                 {output::printProductionRule(1);}
+
+Funcs	    : /*the_empty_word*/                                                    {output::printProductionRule(2);}
+		    | FuncDecl Funcs                                                        {output::printProductionRule(3);}
+
+FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN LBRACE Statements RBRACE    {output::printProductionRule(4);}
+	
+OverRide    : /*the_empty_word*/                                                    {output::printProductionRule(5);}
+		    | OVERRIDE                                                              {output::printProductionRule(6);}
+		
+RetType     : Type                                                                  {output::printProductionRule(7);}
+	        | VOID                                                                  {output::printProductionRule(8);}
+	
+Formals     : /*the_empty_word*/                                                    {output::printProductionRule(9);}
+		    | FormalsList                                                           {output::printProductionRule(10);}
+
+FormalsList	: FormalDecl                                                            {output::printProductionRule(11);}
+			| FormalDecl COMMA FormalsList                                          {output::printProductionRule(12);}
+			
+FormalDecl	: Type ID                                                               {output::printProductionRule(13);}
+
+Statements	: Statement                                                             {output::printProductionRule(14);}
+			| Statements Statement                                                  {output::printProductionRule(15);}
+
+/* orignly the statment was like this:
+Statement	: LBRACE Statements RBRACE                                              {output::printProductionRule(16);}
+			| Type ID SC                                                            {output::printProductionRule(17);}
+			| Type ID ASSIGN Exp SC                                                 {output::printProductionRule(18);}
+			| ID ASSIGN Exp SC                                                      {output::printProductionRule(19);}
+			| Call SC                                                               {output::printProductionRule(20);}
+			| RETURN SC                                                             {output::printProductionRule(21);}
+			| RETURN Exp SC                                                         {output::printProductionRule(22);}
+			    | IF LPAREN Exp RPAREN Statement                                    {output::printProductionRule(23);}
+			    | IF LPAREN Exp RPAREN Statement ELSE Statement                     {output::printProductionRule(24);}
+			    | WHILE LPAREN Exp RPAREN Statement                                 {output::printProductionRule(25);}
+			| BREAK SC                                                              {output::printProductionRule(26);}
+			| CONTINUE SC                                                           {output::printProductionRule(27);}
+*/
+
+// deviding the statment like done in the wikipedia page (https://en.wikipedia.org/wiki/Dangling_else)
+// Oren I also added the while as an IF, cuz the compiler showed a S/R conflict with while and inside/after it IF ELSE
+
+Statement	: OpenIfWhileStatement
+            | ClosedIfWhileStatment
+            ;
+
+OpenIfWhileStatement    : IF LPAREN Exp RPAREN Statement                                        {output::printProductionRule(23);}
+                        | IF LPAREN Exp RPAREN ClosedIfWhileStatment ELSE OpenIfWhileStatement  {output::printProductionRule(24);}
+                        | WHILE LPAREN Exp RPAREN OpenIfWhileStatement                          {output::printProductionRule(25);}
+                        
+
+ClosedIfWhileStatment   : NotIfWhileStatement
+                        | IF LPAREN Exp RPAREN ClosedIfWhileStatment ELSE ClosedIfWhileStatment {output::printProductionRule(24);}
+                        | WHILE LPAREN Exp RPAREN ClosedIfWhileStatment                         {output::printProductionRule(25);}
+
+NotIfWhileStatement     : LBRACE Statements RBRACE                                              {output::printProductionRule(16);}
+                        | Type ID SC                                                            {output::printProductionRule(17);}
+                        | Type ID ASSIGN Exp SC                                                 {output::printProductionRule(18);}
+                        | ID ASSIGN Exp SC                                                      {output::printProductionRule(19);}
+                        | Call SC                                                               {output::printProductionRule(20);}
+                        | RETURN SC                                                             {output::printProductionRule(21);}
+                        | RETURN Exp SC                                                         {output::printProductionRule(22);}
+                        | BREAK SC                                                              {output::printProductionRule(26);}
+                        | CONTINUE SC                                                           {output::printProductionRule(27);}
+
+
+Call 	    : ID LPAREN ExpList RPAREN                                              {output::printProductionRule(28);}
+            | ID LPAREN RPAREN                                                      {output::printProductionRule(29);}
+		
+ExpList	    : Exp	                                                                {output::printProductionRule(30);}
+		    | Exp COMMA ExpList                                                     {output::printProductionRule(31);}
+		
+Type	    : INT                                                                   {output::printProductionRule(32);}
+		    | BYTE                                                                  {output::printProductionRule(33);}
+		    | BOOL                                                                  {output::printProductionRule(34);}
+
+
+/* orignly the Exp was like this:		
+Exp		    : LPAREN Exp RPAREN                                                     {output::printProductionRule(35);}
+            | Exp MULTIPLICATIVE Exp                                                {output::printProductionRule(36);}
+            | Exp ADDITIVE Exp                                                      {output::printProductionRule(36);}
+            | ID                                                                    {output::printProductionRule(37);}
+            | Call                                                                  {output::printProductionRule(38);}
+            | NUM                                                                   {output::printProductionRule(39);}
+            | NUM B                                                                 {output::printProductionRule(40);}
+            | STRING                                                                {output::printProductionRule(41);}
+            | TRUE                                                                  {output::printProductionRule(42);}
+            | FALSE                                                                 {output::printProductionRule(43);}
+            | NOT Exp                                                               {output::printProductionRule(44);}
+            | Exp AND Exp                                                           {output::printProductionRule(45);}
+            | Exp OR Exp                                                            {output::printProductionRule(46);}
+            | Exp RELATIONAL Exp                                                    {output::printProductionRule(47);}
+            | Exp EQUALITY Exp                                                      {output::printProductionRule(47);}
+            | LPAREN Type RPAREN Exp                                                {output::printProductionRule(48);}
+*/
+
+// deviding Exp for debug comfort:
+Exp         : NumbericExp
+            | SingleExp
+            | complexExp
+            ;
+
+NumbericExp  : LPAREN Exp RPAREN                                                     {output::printProductionRule(35);}
+             | Exp MULTIPLICATIVE Exp                                                {output::printProductionRule(36);}
+             | Exp ADDITIVE Exp                                                      {output::printProductionRule(36);}
+
+SingleExp   : ID                                                                    {output::printProductionRule(37);}
+            | Call                                                                  {output::printProductionRule(38);}
+            | NUM                                                                   {output::printProductionRule(39);}
+            | NUM B                                                                 {output::printProductionRule(40);}
+            | STRING                                                                {output::printProductionRule(41);}
+            | TRUE                                                                  {output::printProductionRule(42);}
+            | FALSE                                                                 {output::printProductionRule(43);}
+            
+complexExp  : NOT Exp                                                               {output::printProductionRule(44);}
+            | Exp AND Exp                                                           {output::printProductionRule(45);}
+            | Exp OR Exp                                                            {output::printProductionRule(46);}
+            | Exp RELATIONAL Exp                                                    {output::printProductionRule(47);}
+            | Exp EQUALITY Exp                                                      {output::printProductionRule(47);}
+            | LPAREN Type RPAREN Exp                                                {output::printProductionRule(48);}
+
+%%
+
+void yyerror(const char*)
+{   // override the defult error
+    output::errorSyn(yylineno);
+    exit(1);
+}
+
+int main()
+{
+    // RONY for debug remove before submiting :
+    // yydebug = 1; 
+
+    return yyparse();
+}
