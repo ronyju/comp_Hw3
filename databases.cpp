@@ -1,5 +1,7 @@
 #include "databases.hpp"
 #include "hw3_output.hpp"
+#include <vector>
+#include <algorithm>
 /* ------------------------------- Type ------------------------------- */
 string TypeStruct::ToString() {
     string type_to_string;
@@ -200,7 +202,7 @@ void ScopeStack::AddSymbolToCurrentScope(SymbolTableElement element) {
         current_offset ++;
         offset_stack.push_front(current_offset);
     } else {
-        element.SetOffset(NA);
+        element.SetOffset(NA);      
     }
 
     Scope* cur_scope = &scopes_stack.front(); // this is a copy!
@@ -307,12 +309,14 @@ ErrorType ScopeStack::checkForErrorBeforeAddSymbolToCurrentScope(SymbolTableElem
 ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector, string expectedReturnType ) {
     bool found;
     SymbolTableElement* func;
+    vector<string> funcArgument;
     vector<string> expectedArgumentsTypes;
     vector <pair<string,bool>> expectedArgumentsNames;
     for (auto pair :types_names_isId_arg_vector){
         expectedArgumentsTypes.push_back(pair.first);
         expectedArgumentsNames.push_back(pair.second);
     }
+    reverse(expectedArgumentsTypes.begin(), expectedArgumentsTypes.end()); // OREN this is created in a reverse order in the expList 
     func = SearchInAllScopesByName (expectedFuncName, &found);
     if (!found || func == nullptr) {
         return ERROR_UNDEF_FUNC; // calling a function that was not declared.
@@ -320,7 +324,23 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
     if (!func->IsFunc()) {
         return ERROR_UNDEF_FUNC; // using identifier that is not a func as a func.
     }
-    if (func->GetType().GetArgumentsTypes() != expectedArgumentsTypes) {
+
+    funcArgument = func->GetType().GetCopyOfArgumentsTypes();   
+    if (funcArgument != expectedArgumentsTypes) {
+    //----------------------------------------------------
+        cout << "\nRONY : funcArgument:" <<endl; //RONY remove
+        if (!funcArgument.empty()) //RONY remov
+            for (auto i : funcArgument) { //RONY remov
+                cout <<i <<", "; //RONY remov
+            } //RONY remov
+        cout << "\nRONY : expectedArgumentsTypes:" <<endl; //RONY remove
+        if (!expectedArgumentsTypes.empty()) //RONY remov
+            for (auto i : expectedArgumentsTypes) { //RONY remov
+                cout <<i <<", "; //RONY remov
+            } //RONY remov
+        cout << "\n"; //RONY remov
+    //----------------------------------------------------
+
         return ERROR_PROTOTYPE_MISMATCH; // no maching arguments 
     }
     if (expectedReturnType != "dont care") {

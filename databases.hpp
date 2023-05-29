@@ -27,6 +27,7 @@ protected:
     bool isOverride; // true when the function has override in its declaration
     string return_type;
     vector<string> arguments_types;
+    bool isNoArguments;
 
 public:
     // constructor for non-function :
@@ -34,14 +35,16 @@ public:
 
     // constructor for a function :
     TypeStruct(string return_type, vector<string> arguments_types, bool isOverride = false) :
-            type("NULL"), return_type(return_type), arguments_types(arguments_types), isOverride(isOverride){}
+            type("NULL"), return_type(return_type), arguments_types(arguments_types), isOverride(isOverride){ isNoArguments = arguments_types.empty();} 
     virtual ~TypeStruct() {};
     bool IsFunc() { return (return_type != "NULL"); }
     bool IsOverride() { return isOverride; }
     string GetTypeName() { return type; }
     string GetReturnType() { return return_type; }
     vector<string>& GetArgumentsTypes() { return arguments_types; }
+    vector<string> GetCopyOfArgumentsTypes() { return arguments_types; }
     string ToString();
+    bool IsNoArguments() { return isNoArguments; }
 };
 
 /* --------------------------- Symbol Table --------------------------- */
