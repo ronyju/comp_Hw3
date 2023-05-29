@@ -1,7 +1,9 @@
 /******************************Definitions section***********************/
 %{/*Declaration section*/
+#include "hw3_output.hpp"
+#include "types.h"
+#include "databases.hpp"
 #include "parser.tab.hpp"
-#include "output.hpp"
 #include <string>
 #include <iostream>
 
@@ -66,47 +68,47 @@ string_escape_sequence ([\\\\|\\\"|\\n|\\r|\\t|\\0])
 /* from the lex website - the ? means 0 or 1 occurrences of the preceding expression (which is equivalent to saying that the preceding expression is optional), and the * means 0 or more*/
 %%
 
-void                {return VOID;}
-int                 {return INT;}
-byte                {return BYTE;}
-b                   {return B;}
-bool                {return BOOL;}
-override            {return OVERRIDE;}
-and                 {return AND;}
-or                  {return OR;}
-not                 {return NOT;}
-true                {return TRUE;}
-false               {return FALSE;}
-return              {return RETURN;}
-if                  {return IF;}
-else                {return ELSE;}
-while               {return WHILE;}
-break               {return BREAK;}
-continue            {return CONTINUE;}
-{sc}                {return SC;}
-{comma}             {return COMMA;}
-{lparen}            {return LPAREN;}
-{rparem}            {return RPAREN;}
-{lbrace}            {return LBRACE;}
-{rbace}             {return RBRACE;}
-{assign}            {return ASSIGN;}
+void                {yylval=new Node("VOID", "NONE" ,yylineno); return VOID;}
+int                 {yylval=new  Node("INT", "NONE" ,yylineno); return INT;}
+byte                {yylval=new  Node("BYTE", "NONE" ,yylineno); return BYTE;}
+b                   {yylval=new  Node("BYTE", "NONE" ,yylineno); return B;}
+bool                {yylval=new  Node("BOOL", "NONE" ,yylineno); return BOOL;}
+override            {yylval=new  Node(yytext, "NONE" ,yylineno); return OVERRIDE;}
+and                 {yylval=new  Node("BOOL", yytext, yylineno); return AND;}
+or                  {yylval=new  Node("BOOL", yytext, yylineno); return OR;}
+not                 {yylval=new  Node("BOOL", yytext, yylineno); return NOT;}
+true                {yylval=new  Node("BOOL", yytext, yylineno); return TRUE;}
+false               {yylval=new  Node("BOOL", yytext, yylineno); return FALSE;}
+return              {yylval=new Node(yytext, "NONE" ,yylineno); return RETURN;}
+if                  {yylval=new Node(yytext, "NONE" ,yylineno); return IF;}
+else                {yylval=new Node(yytext, "NONE" ,yylineno); return ELSE;}
+while               {yylval=new Node(yytext, "NONE" ,yylineno); return WHILE;}
+break               {yylval=new Node(yytext, "NONE" ,yylineno); return BREAK;}
+continue            {yylval=new Node(yytext, "NONE" ,yylineno); return CONTINUE;}
+{sc}                {yylval=new Node(yytext, "NONE" ,yylineno); return SC;}
+{comma}             {yylval=new Node(yytext, "NONE" ,yylineno); return COMMA;}
+{lparen}            {yylval=new Node(yytext, "NONE" ,yylineno); return LPAREN;}
+{rparem}            {yylval=new Node(yytext, "NONE" ,yylineno); return RPAREN;}
+{lbrace}            {yylval=new Node(yytext, "NONE" ,yylineno); return LBRACE;}
+{rbace}             {yylval=new Node(yytext, "NONE" ,yylineno); return RBRACE;}
+{assign}            {yylval=new Node(yytext, "NONE" ,yylineno); return ASSIGN;}
 
 
 
-{relational}        {return RELATIONAL;}     
-{equality}          {return EQUALITY;}  
+{relational}        {yylval=new Node("BOOL" , yytext, yylineno); return RELATIONAL;}
+{equality}          {yylval=new Node("BOOL" , yytext ,yylineno); return EQUALITY;}
 
 
-{additive}          {return ADDITIVE;} 
-{multiplicative}    {return MULTIPLICATIVE;} 
-
-  
+{additive}          {yylval=new Node("NUM" , yytext, yylineno); return ADDITIVE;}
+{multiplicative}    {yylval=new Node("NUM" ,yytext, yylineno); return MULTIPLICATIVE;}
 
 
-{id}         {return ID;}
-{num}        {return NUM;}
-{string}     {return STRING;}
-{spaces}     ;   
+
+
+{id}         {yylval=new Node("ID", yytext ,yylineno); return ID;}
+{num}        {yylval=new Node("INT", yytext ,yylineno); return NUM;}
+{string}     {yylval=new Node("STRING", yytext ,yylineno); return STRING;}
+{spaces}     ;
 {comment}    ;
 
 {error}	     {LexErrorReport(yylineno);} // errorLex and than stop the program.

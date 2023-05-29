@@ -1,20 +1,20 @@
 #include "databases.hpp"
-
+#include "hw3_output.hpp"
 /* ------------------------------- Type ------------------------------- */
-string Type::ToString() {
+string TypeStruct::ToString() {
     string type_to_string;
     if (IsFunc()) {
         type_to_string = "( Type is a func ";
         if (IsOverride()) { type_to_string += " with override, "; }
         type_to_string+= "with | return type - " + return_type + " | and arguments type: ";
         for (int i =0; i<arguments_types.size()-1; i++) {
-            type_to_string+= arguments_names[i] + " : " + arguments_types[i] + ", ";
+            type_to_string+=  arguments_types[i] + ", ";
         }
-        type_to_string+=  arguments_names[arguments_types.size()-1] + " : " + arguments_types[arguments_types.size()-1] + " |";
+        type_to_string+= arguments_types[arguments_types.size()-1] + " |";
         type_to_string+= " ) ";
     }
     else {
-        type_to_string = "( Type is ver of type - " + type_name + " ) ";
+        type_to_string = "( Type is ver of type - " + type + " ) ";
     }
     return type_to_string;
 }
@@ -51,6 +51,7 @@ void SymbolTable::PrintTable () {
     }
     cout << endl;
 }
+
 string SymbolTable::ToString(){
     string table_to_string;
     table_to_string = "printing table: \n";
@@ -65,27 +66,27 @@ string SymbolTable::ToString(){
 
 string Scope::ScopeTypeStr() {
     switch (scope_type) {
-        case WHILE:
+        case WHILE_SCOPE:
             return "while";
             break;
 
-        case IF:
+        case IF_SCOPE:
             return "if";
             break;
 
-        case ELSE:
+        case ELSE_SCOPE:
             return "else";
             break;
 
-        case FUNC:
+        case FUNC_SCOPE:
             return "func";
             break;
 
-        case REGULAR:
+        case REGULAR_SCOPE:
             return "regular";
             break;
 
-        case GLOBAL:
+        case GLOBAL_SCOPE:
             return "global";
             break;
 
@@ -94,6 +95,20 @@ string Scope::ScopeTypeStr() {
     }
     return "error no such scopeType";
 }
+
+void Scope::PrintScope() {
+    output::endScope();
+    for(SymbolTableElement element : sym_table.table_vector)
+    {
+       if(element.IsFunc()){
+           cout<<element.GetName()<<" "<< output::makeFunctionType(element.GetType().GetReturnType(),element.GetType().GetArgumentsTypes())<<" 0"<<endl;
+       }
+       else{
+           output::printID(element.GetName(),element.GetOffset() ,element.GetType().GetTypeName());
+       }
+    }
+}
+
 SymbolTableElement* ScopeStack::SearchInAllScopesByName(string name, bool* found) {
     if (scopes_stack.empty()) {
         *found = false;
@@ -175,6 +190,7 @@ void ScopeStack::AddSymbolToCurrentScope(string name, Type type, int offset) {
     Scope* cur_scope = &scopes_stack.front();
     cur_scope->AddToScope(name, type, offset);
 }*/
+
 void ScopeStack::AddSymbolToCurrentScope(SymbolTableElement element) {
     if (scopes_stack.empty()) { cout<< "ERROR trying to add to current scope when there is no scopes! "; return; }
     if (!element.IsFunc()) {
@@ -186,20 +202,16 @@ void ScopeStack::AddSymbolToCurrentScope(SymbolTableElement element) {
     } else {
         element.SetOffset(NA);
     }
+
     Scope* cur_scope = &scopes_stack.front(); // this is a copy!
     cur_scope->AddToScope(element);
 
-    if (element.IsFunc())   {
-        // add the aruments to the stack as vars:
-        vector<string> argumentsType = element.GetType().GetArgumentsTypes();
-        vector<string> argumentsNames = element.GetType().GetArgumentsNames();
-        for (int i = 0; i<argumentsType.size(); i++) {
-            Type curType (argumentsType[i]);
-            int offset = -1*(i+1);
-            SymbolTableElement curElem (argumentsNames[i], curType, offset);
-            cur_scope->AddToScope(curElem);
-        }
-    }
+}
+
+void ScopeStack::AddArgumentToCurrentScope(SymbolTableElement element) {
+    if (scopes_stack.empty()) { cout<< "ERROR trying to add to current scope when there is no scopes! "; return; }
+    Scope* cur_scope = &scopes_stack.front(); // this is a copy!
+    cur_scope->AddToScope(element);
 }
 
 void ScopeStack::printOffsetStack() {
@@ -211,7 +223,7 @@ void ScopeStack::printOffsetStack() {
     cout << "--------------------------------- "<<endl;
 }
 
-void ScopeStack::PushNewScope(ScopeType scope_type) {
+void ScopeStack::PushNewScope(ScopeType scope_type, vector<pair<string,string>> types_names_arg_vector) {
     // meaning add a new scope with empty table.
     if (scopes_stack.empty()) {// this is the first scope
         offset_stack.push_front(0);
@@ -221,12 +233,43 @@ void ScopeStack::PushNewScope(ScopeType scope_type) {
     }
     Scope new_scope (scope_type);
     scopes_stack.push_front(new_scope);
+    if(scope_type == GLOBAL_SCOPE){
+        //add library function print:string->void to global scope
+        vector<string> print_args_type= {"STRING"};
+        TypeStruct print_func("VOID", print_args_type);
+        SymbolTableElement print_element("print",print_func);
+        AddSymbolToCurrentScope(print_element);
 
+        //add library function printi:int->void to global scope
+        vector<string> printi_args_type= {"INT"};
+        TypeStruct printi_func("VOID", printi_args_type);
+        SymbolTableElement printi_element("printi",printi_func);
+        AddSymbolToCurrentScope(printi_element);
+    }
+
+    if (scope_type == FUNC_SCOPE) { //TODO: Rony this was not checked
+        // add the arguments to the stack as vars:
+        vector<string> argumentsType;
+        vector<string> argumentsNames;
+        for (auto pair :types_names_arg_vector){
+            argumentsType.push_back(pair.first);
+            argumentsNames.push_back(pair.second);
+        }
+        for (int i = 0; i<argumentsType.size(); i++) {
+            TypeStruct curType (argumentsType[i]);
+            int offset = -1*(i+1);
+            SymbolTableElement curElem (argumentsNames[i], curType, offset);
+            AddArgumentToCurrentScope(curElem);
+        }
+    }
 }
+
 void ScopeStack::PopScope() {
     // meaning remove the last scope.
-    scopes_stack.pop_front();
-    offset_stack.pop_front();
+    if(!scopes_stack.empty()) {
+        scopes_stack.pop_front();
+        offset_stack.pop_front();
+    }
 }
 // new :
 ErrorType ScopeStack::checkForErrorBeforeAddSymbolToCurrentScope(SymbolTableElement element) {
@@ -261,9 +304,15 @@ ErrorType ScopeStack::checkForErrorBeforeAddSymbolToCurrentScope(SymbolTableElem
 
     return NO_ERROR;
 }
-ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<string> expectedArgumentsTypes, string expectedReturnType ) {
+ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector, string expectedReturnType ) {
     bool found;
     SymbolTableElement* func;
+    vector<string> expectedArgumentsTypes;
+    vector <pair<string,bool>> expectedArgumentsNames;
+    for (auto pair :types_names_isId_arg_vector){
+        expectedArgumentsTypes.push_back(pair.first);
+        expectedArgumentsNames.push_back(pair.second);
+    }
     func = SearchInAllScopesByName (expectedFuncName, &found);
     if (!found || func == nullptr) {
         return ERROR_UNDEF_FUNC; // calling a function that was not declared.
@@ -279,6 +328,14 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
             return ERROR_MISMATCH; //type don't match
         }
     }
+    for (auto var: expectedArgumentsNames) {
+        if(var.second) {
+            ErrorType error = checkIfVarExist(var.first);
+            if (error != NO_ERROR) {
+                return error;
+            }
+        }
+    }
     return NO_ERROR;
 }
 ErrorType ScopeStack::checkIfVarExist(string expectedVarName, string expectedVarType) {
@@ -292,9 +349,32 @@ ErrorType ScopeStack::checkIfVarExist(string expectedVarName, string expectedVar
         return ERROR_UNDEF; // using a var that is not a var (a function);
     }
     if (expectedVarType != "dont care") {
-        if (expectedVarType != var->GetType().GetTypeName()) {
+        if (expectedVarType != var->GetType().GetTypeName()
+        && !(expectedVarType =="int" && var->GetType().GetTypeName()=="byte")) {
             return ERROR_MISMATCH; //type don't match
         }
+    }
+    return NO_ERROR;
+}
+
+void ScopeStack::PushNewScope(string scope_type,vector<pair<string,string>> types_names_arg_vector) {
+    if(scope_type == "GLOBAL") ScopeStack::PushNewScope(GLOBAL_SCOPE);
+    else if(scope_type == "WHILE") ScopeStack::PushNewScope(WHILE_SCOPE);
+    else if(scope_type == "IF") ScopeStack::PushNewScope(IF_SCOPE);
+    else if(scope_type == "ELSE") ScopeStack::PushNewScope(ELSE_SCOPE);
+    else if(scope_type == "FUNC") ScopeStack::PushNewScope(FUNC_SCOPE,types_names_arg_vector);
+    else if(scope_type == "REGULAR") ScopeStack::PushNewScope(REGULAR_SCOPE);
+}
+
+void ScopeStack::PrintCurrentScope() {
+    //this->printStack();
+    scopes_stack.front().PrintScope();
+}
+
+ErrorType ScopeStack::checkIfAssignedTypesAreCompatible(string expectedVarType, string givenVarType){
+    if (expectedVarType != givenVarType
+        && !(expectedVarType =="int" && givenVarType=="byte")) {
+        return ERROR_MISMATCH; //type don't match
     }
     return NO_ERROR;
 }

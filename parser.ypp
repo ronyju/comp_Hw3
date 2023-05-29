@@ -1,11 +1,25 @@
 //declerations
 %{
     #include <iostream>
-    #include "output.hpp"
-
-    int yylex();
-    void yyerror(const char*);
+    #include "hw3_output.hpp"
+    #include "databases.hpp"
+    #include "types.h"
+    extern int yylex();
     extern int yylineno;
+    extern char *yytext;
+    ScopeStack scopStack;
+    void popScope();
+    void yyerror(const char*);
+    string functionReturnType;
+	void addElementToScope(string type, string name, string valueType , int yylineno);
+    void addFuncToScope(bool isOverride,string returnType,string funcName,int yylineno);
+    vector<pair<string,string>> types_names_arg_vector;
+    vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector;
+    void handleErrorCode(ErrorType error, int lineno, const string& name, const string& value);
+    void assignNewValToExistName(string name,string givenType, int lineno);
+    Node* handeleMultiplacativeAndAdditive(Node* exp1,Node* exp2,int yylineno);
+    void checkAfterCallIfFuncExist (string func_name);
+
 
 // RONY for debug remove before submiting :
 //    #define YYERROR_VERBOSE 1 
@@ -72,126 +86,103 @@
 
 %%
 //rules
-Program     : Funcs                                                                 {output::printProductionRule(1);}
+Program     : M_GLOBAL_SCOPE Funcs                                                              {popScope();}  //1
 
-Funcs	    : /*the_empty_word*/                                                    {output::printProductionRule(2);}
-		    | FuncDecl Funcs                                                        {output::printProductionRule(3);}
+Funcs	    : /*the_empty_word*/                                                    //{output::printProductionRule(2);}
+		    | FuncDecl Funcs                                                        //{output::printProductionRule(3);}
 
-FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN LBRACE Statements RBRACE    {output::printProductionRule(4);}
-	
-OverRide    : /*the_empty_word*/                                                    {output::printProductionRule(5);}
-		    | OVERRIDE                                                              {output::printProductionRule(6);}
-		
-RetType     : Type                                                                  {output::printProductionRule(7);}
-	        | VOID                                                                  {output::printProductionRule(8);}
-	
-Formals     : /*the_empty_word*/                                                    {output::printProductionRule(9);}
-		    | FormalsList                                                           {output::printProductionRule(10);}
+FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN {addFuncToScope($1->GetType() == "overrid",$2->GetType(),$3->GetValue(),yylineno);} M_FUNC_SCOPE LBRACE Statements RBRACE {popScope();}//{$$ = new FuncsDecl(yylineno);popScope();} //{addFuncToScope($1->IsOverride(),$2->GetReturnType(),$3->GetTypeName(),yylineno); $$ = new FuncsDecl(yylineno);popScope();}   //4
 
-FormalsList	: FormalDecl                                                            {output::printProductionRule(11);}
-			| FormalDecl COMMA FormalsList                                          {output::printProductionRule(12);}
-			
-FormalDecl	: Type ID                                                               {output::printProductionRule(13);}
+OverRide    : /*the_empty_word*/ {$$ = new Node("NONE","NONE",yylineno);}                                                   //{output::printProductionRule(5);}
+		    | OVERRIDE           {$$ = $1;}                                                   //{if($1->IsOverride()) {$$=new Override(true);} else{$$=new Override(false);}}                                                      //{output::printProductionRule(6);}
 
-Statements	: Statement                                                             {output::printProductionRule(14);}
-			| Statements Statement                                                  {output::printProductionRule(15);}
+RetType     : Type               {$$ = $1;}// ;functionReturnType=$1->GetTypeName();}                                                 //{output::printProductionRule(7);}
+	        | VOID               {$$ = $1;}//{$$ = new RetType("void",yylineno);functionReturnType="void";}                                                //{output::printProductionRule(8);}
 
-/* orignly the statment was like this:
-Statement	: LBRACE Statements RBRACE                                              {output::printProductionRule(16);}
-			| Type ID SC                                                            {output::printProductionRule(17);}
-			| Type ID ASSIGN Exp SC                                                 {output::printProductionRule(18);}
-			| ID ASSIGN Exp SC                                                      {output::printProductionRule(19);}
-			| Call SC                                                               {output::printProductionRule(20);}
-			| RETURN SC                                                             {output::printProductionRule(21);}
-			| RETURN Exp SC                                                         {output::printProductionRule(22);}
-			    | IF LPAREN Exp RPAREN Statement                                    {output::printProductionRule(23);}
-			    | IF LPAREN Exp RPAREN Statement ELSE Statement                     {output::printProductionRule(24);}
-			    | WHILE LPAREN Exp RPAREN Statement                                 {output::printProductionRule(25);}
-			| BREAK SC                                                              {output::printProductionRule(26);}
-			| CONTINUE SC                                                           {output::printProductionRule(27);}
-*/
+Formals     : /*the_empty_word*/                                                    //{output::printProductionRule(9);}
+		    | FormalsList                                                           //{output::printProductionRule(10);}
+
+FormalsList	: FormalDecl                                                            //{output::printProductionRule(11);}
+			| FormalDecl COMMA FormalsList                                          //{output::printProductionRule(12);}
+
+FormalDecl	: Type ID             {types_names_arg_vector.push_back(make_pair($1->GetType(),$2->GetValue()));}                                                  //{output::printProductionRule(13);}
+                                                //{output::printProductionRule(15);}
 
 // deviding the statment like done in the wikipedia page (https://en.wikipedia.org/wiki/Dangling_else)
 // Oren I also added the while as an IF, cuz the compiler showed a S/R conflict with while and inside/after it IF ELSE
 
+Statements	: Statement                                                             //{output::printProductionRule(14);}
+			| Statements Statement  
+
 Statement	: OpenIfWhileStatement
             | ClosedIfWhileStatment
-            ;
+            
 
-OpenIfWhileStatement    : IF LPAREN Exp RPAREN Statement                                        {output::printProductionRule(23);}
-                        | IF LPAREN Exp RPAREN ClosedIfWhileStatment ELSE OpenIfWhileStatement  {output::printProductionRule(24);}
-                        | WHILE LPAREN Exp RPAREN OpenIfWhileStatement                          {output::printProductionRule(25);}
-                        
+OpenIfWhileStatement    : IF LPAREN Exp RPAREN Statement                                        //{output::printProductionRule(23);}
+                        | IF LPAREN Exp RPAREN ClosedIfWhileStatment ELSE OpenIfWhileStatement  //{output::printProductionRule(24);}
+                        | WHILE LPAREN Exp RPAREN OpenIfWhileStatement                          //{output::printProductionRule(25);}
+
 
 ClosedIfWhileStatment   : NotIfWhileStatement
-                        | IF LPAREN Exp RPAREN ClosedIfWhileStatment ELSE ClosedIfWhileStatment {output::printProductionRule(24);}
-                        | WHILE LPAREN Exp RPAREN ClosedIfWhileStatment                         {output::printProductionRule(25);}
+                        | IF LPAREN Exp RPAREN ClosedIfWhileStatment ELSE ClosedIfWhileStatment //{output::printProductionRule(24);}
+                        | WHILE LPAREN Exp RPAREN ClosedIfWhileStatment                         //{output::printProductionRule(25);}
 
-NotIfWhileStatement     : LBRACE Statements RBRACE                                              {output::printProductionRule(16);}
-                        | Type ID SC                                                            {output::printProductionRule(17);}
-                        | Type ID ASSIGN Exp SC                                                 {output::printProductionRule(18);}
-                        | ID ASSIGN Exp SC                                                      {output::printProductionRule(19);}
-                        | Call SC                                                               {output::printProductionRule(20);}
-                        | RETURN SC                                                             {output::printProductionRule(21);}
-                        | RETURN Exp SC                                                         {output::printProductionRule(22);}
-                        | BREAK SC                                                              {output::printProductionRule(26);}
-                        | CONTINUE SC                                                           {output::printProductionRule(27);}
-
-
-Call 	    : ID LPAREN ExpList RPAREN                                              {output::printProductionRule(28);}
-            | ID LPAREN RPAREN                                                      {output::printProductionRule(29);}
-		
-ExpList	    : Exp	                                                                {output::printProductionRule(30);}
-		    | Exp COMMA ExpList                                                     {output::printProductionRule(31);}
-		
-Type	    : INT                                                                   {output::printProductionRule(32);}
-		    | BYTE                                                                  {output::printProductionRule(33);}
-		    | BOOL                                                                  {output::printProductionRule(34);}
+NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {popScope();}                                           //{output::printProductionRule(16);}
+                        | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE" ,yylineno);} 	//{addElementToScope($1, $2->GetTypeName(),yylineno);}                              //{output::printProductionRule(17);}
+                        | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() ,yylineno);}                                             //{output::printProductionRule(18);}
+                        | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3->GetType() , yylineno);}//{scopStack.checkIfVarExist($1->GetTypeName());}                                             //{output::printProductionRule(19);}
+                        | Call SC                                                               //{output::printProductionRule(20);}
+                        | RETURN SC                                                             //{output::printProductionRule(21);}
+                        | RETURN Exp SC                                                         //{output::printProductionRule(22);}
+                        | BREAK SC                                                              //{output::printProductionRule(26);}
+                        | CONTINUE SC                                                           //{output::printProductionRule(27);}
 
 
-/* orignly the Exp was like this:		
-Exp		    : LPAREN Exp RPAREN                                                     {output::printProductionRule(35);}
-            | Exp MULTIPLICATIVE Exp                                                {output::printProductionRule(36);}
-            | Exp ADDITIVE Exp                                                      {output::printProductionRule(36);}
-            | ID                                                                    {output::printProductionRule(37);}
-            | Call                                                                  {output::printProductionRule(38);}
-            | NUM                                                                   {output::printProductionRule(39);}
-            | NUM B                                                                 {output::printProductionRule(40);}
-            | STRING                                                                {output::printProductionRule(41);}
-            | TRUE                                                                  {output::printProductionRule(42);}
-            | FALSE                                                                 {output::printProductionRule(43);}
-            | NOT Exp                                                               {output::printProductionRule(44);}
-            | Exp AND Exp                                                           {output::printProductionRule(45);}
-            | Exp OR Exp                                                            {output::printProductionRule(46);}
-            | Exp RELATIONAL Exp                                                    {output::printProductionRule(47);}
-            | Exp EQUALITY Exp                                                      {output::printProductionRule(47);}
-            | LPAREN Type RPAREN Exp                                                {output::printProductionRule(48);}
-*/
+Call 	    : ID LPAREN ExpList RPAREN    { checkAfterCallIfFuncExist($1->GetValue()); }                                     
+            | ID LPAREN RPAREN            { checkAfterCallIfFuncExist($1->GetValue()); }                                         //{output::printProductionRule(29);}
+
+ExpList	    : Exp	                     {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));}                                       //{output::printProductionRule(30);}
+		    | Exp COMMA ExpList          {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));}                                           //{output::printProductionRule(31);}
+
+Type	    : INT      {$$ = $1;}                                                         //{output::printProductionRule(32);}
+		    | BYTE     {$$ = $1;}                                                           // {output::printProductionRule(33);}
+		    | BOOL     {$$ = $1;}                                                           //{output::printProductionRule(34);}
+
 
 // deviding Exp for debug comfort:
-Exp         : NumbericExp
-            | SingleExp
-            | complexExp
+Exp         : NumericExp    {$$ = $1;}
+            | SingleExp     {$$ = $1;}
+            | complexExp    {$$ = $1;}
             ;
 
-NumbericExp  : LPAREN Exp RPAREN                                                     {output::printProductionRule(35);}
-             | Exp MULTIPLICATIVE Exp                                                {output::printProductionRule(36);}
-             | Exp ADDITIVE Exp                                                      {output::printProductionRule(36);}
+NumericExp  : LPAREN Exp RPAREN            {$$ = $2;} //{$$ = dynamic_cast<NumericExp*>($2);}                                         //{output::printProductionRule(35);}
+             | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditive($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"mult",yylineno);}                                      // //{output::printProductionRule(36);}
+             | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditive($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"add",yylineno);}                                        //{output::printProductionRule(36);}
 
-SingleExp   : ID                                                                    {output::printProductionRule(37);}
-            | Call                                                                  {output::printProductionRule(38);}
-            | NUM                                                                   {output::printProductionRule(39);}
-            | NUM B                                                                 {output::printProductionRule(40);}
-            | STRING                                                                {output::printProductionRule(41);}
-            | TRUE                                                                  {output::printProductionRule(42);}
-            | FALSE                                                                 {output::printProductionRule(43);}
-            
-complexExp  : NOT Exp                                                               {output::printProductionRule(44);}
-            | Exp AND Exp                                                           {output::printProductionRule(45);}
-            | Exp OR Exp                                                            {output::printProductionRule(46);}
-            | Exp RELATIONAL Exp                                                    {output::printProductionRule(47);}
-            | Exp EQUALITY Exp                                                      {output::printProductionRule(47);}
-            | LPAREN Type RPAREN Exp                                                {output::printProductionRule(48);}
+SingleExp   : ID                      	{$$ = $1;} //{$$ = new SingleExp($1->GetTypeName(),"id",yylineno);}           //for id Type.type== name of ID                                     //{output::printProductionRule(37);}
+            | Call                      {$$ = $1;}//{$$ = dynamic_cast<SingleExp*>($1);}                                           // {output::printProductionRule(38);}
+            | NUM                       {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"int",yylineno);}                                             // {output::printProductionRule(39);}
+            | NUM B                     {$$ = new Node($2->GetType(), $1->GetValue(), yylineno);}//{$$ = new SingleExp($1->GetTypeName(),"byte",yylineno);}                                                //v{output::printProductionRule(40);}
+            | STRING                    {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"string",yylineno);}                                              // {output::printProductionRule(41);}
+            | TRUE                      {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"bool",yylineno);}                                               //{output::printProductionRule(42);}
+            | FALSE                     {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"bool",yylineno);}                                              // {output::printProductionRule(43);}
+
+complexExp  : NOT Exp                    //{$$ = new complexExp($2,"not",yylineno);}                                            // {output::printProductionRule(44);}
+            | Exp AND Exp                //{$$ = new complexExp($1,$3,"and",yylineno);}                                          //{output::printProductionRule(45);}
+            | Exp OR Exp                 //{$$ = new complexExp($1,$3,"or",yylineno);}                                        // {output::printProductionRule(46);}
+            | Exp RELATIONAL Exp         //{$$ = new complexExp($1,$3,"relational",yylineno);}                                         // {output::printProductionRule(47);}
+            | Exp EQUALITY Exp           //{$$ = new complexExp($1,$3,"equal",yylineno);}                                          //{output::printProductionRule(47);}
+            | LPAREN Type RPAREN Exp     //{$$ = new complexExp($2,$4,"conversion",yylineno);}                                         // {output::printProductionRule(48);}
+
+//markers
+M_GLOBAL_SCOPE:                   {scopStack.PushNewScope("GLOBAL");}
+//M2:                 {scopStack.PushNewScope("WHILE");}
+//M3:                 {scopStack.PushNewScope("IF");}
+//M4:                 {scopStack.PushNewScope("ELSE");}
+M_FUNC_SCOPE:         { scopStack.PushNewScope("FUNC",types_names_arg_vector);
+                        types_names_arg_vector.clear();}
+M_REGULAR_SCOPE:                   {scopStack.PushNewScope("REGULAR");}
+//M7:                 {/*need to add*/}
 
 %%
 
@@ -201,10 +192,169 @@ void yyerror(const char*)
     exit(1);
 }
 
+    //TypeStruct(string return_type, vector<string> arguments_types, bool isOverride = false) :
+
+
+void addFuncToScope(bool isOverride,string returnType,string funcName, int yylineno){
+    vector<string> arguments_types;
+     for (auto pair : types_names_arg_vector){
+            arguments_types.push_back(pair.first);
+        }
+    TypeStruct funcType(returnType,arguments_types,isOverride);
+    SymbolTableElement funcToAdd(funcName,funcType);
+    //TODO:oren need to add check for every arg of func
+    ErrorType error = scopStack.checkForErrorBeforeAddSymbolToCurrentScope(funcToAdd);
+	if(error == NO_ERROR){
+		scopStack.AddSymbolToCurrentScope(funcToAdd);
+	}
+    else{
+        handleErrorCode(error, yylineno, funcName,"needToAddValueForByteError");
+    }
+
+}
+
+
+void assignNewValToExistName(string name,string givenType, int lineno) {
+    ErrorType error;
+    error = scopStack.checkIfVarExist(name,givenType);
+	if(error != NO_ERROR) {
+        handleErrorCode(error, lineno, name,"needToAddValueForByteError");
+    }
+}
+void checkAfterCallIfFuncExist (string func_name) {
+    ErrorType error =  scopStack.checkAfterCallIfFuncExist(func_name, types_names_isId_arg_vector );  
+    if (error != NO_ERROR) {
+        handleErrorCode(error, yylineno, func_name,"needToAddValueForByteError");
+    }
+    types_names_isId_arg_vector.clear();
+}
+
+void addElementToScope(string type, string name, string valueType , int yylineno) {
+    TypeStruct elementType (type);
+    SymbolTableElement elementToAdd(name, elementType);
+	ErrorType error = scopStack.checkForErrorBeforeAddSymbolToCurrentScope(elementToAdd);
+    ErrorType typeError = NO_ERROR; 
+    if (valueType != "NO_VALUE") { typeError = scopStack.checkIfAssignedTypesAreCompatible(type, valueType); }
+    if(error == NO_ERROR && typeError == NO_ERROR) {
+		    scopStack.AddSymbolToCurrentScope(elementToAdd);
+    } else {
+        error == NO_ERROR ? handleErrorCode(typeError, yylineno, name,"needToAddValueForByteError"):handleErrorCode(error, yylineno, name,"needToAddValueForByteError") ;   
+    }
+}
+
+Node* handeleMultiplacativeAndAdditive(Node* exp1,Node* exp2 ,int yylineno){
+    ErrorType error;
+    string exp1Type = exp1->GetType();
+    string exp2Type = exp2->GetType();
+    // check if exp is INT/BYTR/ID if non of them so error
+        if((exp1Type!="INT" && exp1Type!="BYTE" && exp1Type!="ID" ) || (exp2Type!="INT" && exp2Type!="BYTE" && exp2Type!="ID")){
+        handleErrorCode(ERROR_MISMATCH, yylineno, "NONE" ,"needToAddValueForByteError");
+    }
+    // check if exist
+    bool found1 = true;
+    bool found2 = true;
+    SymbolTableElement* element1;
+    SymbolTableElement* element2;
+    if(exp1Type=="ID"){
+        element1 = scopStack.SearchInAllScopesByName(exp1->GetValue(), &found1);
+    }
+    if(!found1){
+        handleErrorCode(ERROR_UNDEF, yylineno, exp1->GetValue() ,"needToAddValueForByteError");
+    }
+    if(exp2Type=="ID"){
+        element2 = scopStack.SearchInAllScopesByName(exp2->GetValue(), &found2);
+    }
+    if(!found2){
+        handleErrorCode(ERROR_UNDEF, yylineno, exp2->GetValue() ,"needToAddValueForByteError");
+    }  
+
+    // check if type match
+    if(exp1Type=="ID") {
+        exp1Type = element1->GetType().GetTypeName();
+    }
+    if(exp2Type=="ID") {
+        exp2Type = element2->GetType().GetTypeName();
+    }
+    if((exp1Type!="INT" && exp1Type!="BYTE") || (exp2Type!="INT" && exp2Type!="BYTE")){
+        handleErrorCode(ERROR_MISMATCH, yylineno, "NONE" ,"needToAddValueForByteError");
+    }
+
+
+    // decide what type tp retuen
+    string returnType;
+    if (exp1Type == "INT" || exp2Type == "INT") {
+        returnType = "INT";
+    } else {
+        returnType = "BYTE";
+    }
+
+    //create new node
+    Node* newNode = new Node(returnType, "NONE", yylineno);
+    return newNode;
+
+}
+
+
+void popScope(){
+    scopStack.PrintCurrentScope();
+    scopStack.PopScope();
+}
+
 int main()
 {
     // RONY for debug remove before submiting :
-    // yydebug = 1; 
+    // yydebug = 1;
 
     return yyparse();
+}
+
+void handleErrorCode(ErrorType error, int lineno, const string& name, const string& value) {
+    switch (error) {
+        case ERROR_LEX:
+            output::errorLex(lineno);
+            break;
+        case ERROR_SYN:
+            output::errorSyn(lineno);
+            break;
+        case ERROR_UNDEF:
+            output::errorUndef(lineno, name);
+            break;
+        case ERROR_UNDEF_FUNC:
+            output::errorUndefFunc(lineno, name);
+            break;
+        case ERROR_DEF:
+            output::errorDef(lineno, name);
+            break;
+        case ERROR_PROTOTYPE_MISMATCH:
+            output::errorPrototypeMismatch(lineno, name);
+            break;
+        case ERROR_MISMATCH:
+            output::errorMismatch(lineno);
+            break;
+        case ERROR_UNEXPECTED_BREAK:
+            output::errorUnexpectedBreak(lineno);
+            break;
+        case ERROR_UNEXPECTED_CONTINUE:
+            output::errorUnexpectedContinue(lineno);
+            break;
+        case ERROR_MAIN_MISSING:
+            output::errorMainMissing();
+            break;
+        case ERROR_BYTE_TOO_LARGE:
+            output::errorByteTooLarge(lineno, value);
+            break;
+        case ERROR_FUNC_NO_OVERRIDE:
+            output::errorFuncNoOverride(lineno, name);
+            break;
+        case ERROR_OVERRIDE_WITHOUT_DECLARATION:
+            output::errorOverrideWithoutDeclaration(lineno, name);
+            break;
+        case ERROR_AMBIGUOUS_CALL:
+            output::errorAmbiguousCall(lineno, name);
+            break;
+        default:
+            std::cout << "Unknown error." << std::endl;
+            break;
+    }
+    exit(0);
 }

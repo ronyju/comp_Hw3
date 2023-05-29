@@ -3,9 +3,12 @@
 
 #include <vector>
 #include <string>
+
 using namespace std;
 
 namespace output{
+    extern const std::string rules[]; //todo: oren delete this added from hw2
+    void printProductionRule(const int ruleno); //todo: oren delete this added from hw2
     void endScope();
     void printID(const string& id, int offset, const string& type);
 
@@ -28,6 +31,8 @@ namespace output{
     void errorFuncNoOverride(int lineno, const string& id);
     void errorOverrideWithoutDeclaration(int lineno, const string& id);
     void errorAmbiguousCall(int lineno, const string& id);
+    void errorMainOverride(int yylineno);
+
 }
 
 #endif
