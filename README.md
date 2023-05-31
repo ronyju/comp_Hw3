@@ -25,7 +25,9 @@ bool IsCurrentScopeWhile();
 2. you will need to check that byte is not bigger than 255.
 thay havnt yet answered me in the piatzza
 
-and of curse debugging the tests.. witch is the worst part :(
+3. check what number should be printed after every function , should it be 0 for all ?
+
+and of curse debugging the tests... the worst part :(
 
 
 
