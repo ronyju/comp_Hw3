@@ -10,9 +10,9 @@ I made sure the override function calling and creating workes and throu the righ
 It required a few changes you can see them in the github diff but I dont think you need to get into it really.
 
 I think that what you have left is handaling the if, else, while scopes.
-notice that they wrote something a little compusing about how mant scopes an if gets, 
-I wasnt sure whats the best way to approch it there for I havnt started woriking in this erea. 
-you will also need to check that the break and conitue are inside While scope = use this function that I created (return yes if the top scope is WHILE_SCOPE):
+notice that they wrote something a little wired about how many scopes an if gets, 
+I wasnt sure whats the best way to approch it there for I havnt started working in this erea. 
+you will also need to check that the break and conitue are inside While scope -> you may use this function that I wrote (return yes if the top scope is WHILE_SCOPE):
 bool IsCurrentScopeWhile();
 
 
