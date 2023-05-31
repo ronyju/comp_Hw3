@@ -12,7 +12,7 @@
     void popScope();
     void yyerror(const char*);
     string functionReturnType;
-	void addElementToScope(string type, string name, string valueType , int yylineno);
+	void addElementToScope(string type, string name, string valueType, string valueName , int yylineno);
     void addFuncToScope(bool isOverride,string returnType,string funcName,int yylineno);
     vector<pair<string,string>> types_names_arg_vector;
     vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector;
@@ -28,7 +28,7 @@
     
 
 
-// RONY for debug remove before submiting :
+//  for debug remove before submiting :
 //    #define YYERROR_VERBOSE 1 
 //    #define YYDEBUG 1
 %}
@@ -135,8 +135,8 @@ ClosedIfWhileStatment   : NotIfWhileStatement
                         | WHILE LPAREN Exp RPAREN ClosedIfWhileStatment                             {checkIfExpIsBool ($3, yylineno);}                        
 
 NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {popScope();}                                          
-                        | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE" ,yylineno);}                       
-                        | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() ,yylineno);}                                             
+                        | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE", "NO_VALUE" ,yylineno);}                       
+                        | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() , $4->GetValue() ,yylineno);}                                             
                         | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3->GetType() , yylineno);}                                         
                         | Call SC                                           {$$ = $1;}                  
                         | RETURN SC                                         {$$ = $1; checkRet("VOID" ,"", yylineno); }                                                          
@@ -290,12 +290,14 @@ void checkAfterCallIfFuncExist (string func_name) {
     types_names_isId_arg_vector.clear();
 }
 
-void addElementToScope(string type, string name, string valueType , int yylineno) {
+void addElementToScope(string type, string name, string valueType, string valueName , int yylineno) {
     TypeStruct elementType (type);
     SymbolTableElement elementToAdd(name, elementType);
 	ErrorType error = scopStack.checkForErrorBeforeAddSymbolToCurrentScope(elementToAdd);
-    ErrorType typeError = NO_ERROR; 
-    if (valueType != "NO_VALUE") { typeError = scopStack.checkIfAssignedTypesAreCompatible(type, valueType); }
+    ErrorType typeError = NO_ERROR;
+    
+    if (valueType == "ID") { scopStack.checkIfVarExist(valueName,valueType); } 
+    if (valueType != "NO_VALUE" && valueType!= "ID") { typeError = scopStack.checkIfAssignedTypesAreCompatible(type, valueType); }
     if(error == NO_ERROR && typeError == NO_ERROR) {
 		    scopStack.AddSymbolToCurrentScope(elementToAdd);
     } else {
@@ -413,7 +415,7 @@ void popScope(){
 
 int main()
 {
-    // RONY for debug remove before submiting :
+    // for debug remove before submiting :
     // yydebug = 1;
 
     return yyparse();

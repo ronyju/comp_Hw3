@@ -65,7 +65,7 @@ string SymbolTable::ToString(){
 }
 
 /* --------------------------- stack of scopes --------------------------- */
-
+bool IsArgVectorMatch(vector<string> funcArg, vector<string> callArg); 
 string Scope::ScopeTypeStr() {
     switch (scope_type) {
         case WHILE_SCOPE:
@@ -359,10 +359,14 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
     // func is overrid! and there might be a few with the same name, and I need to check them all.
     vector <SymbolTableElement*> allFuncs = GetAllFuncOfName (expectedFuncName);
     ErrorType error;
+    int countMatch = 0;
+    if (error != NO_ERROR) { return error; }
     for ( auto cuurent_func : allFuncs){
         error = CheckCallArgumentToFunc (cuurent_func, expectedArgumentsNames, expectedArgumentsTypes, expectedReturnType);
-        if (error == NO_ERROR) { return NO_ERROR; } // one of the function with this name is ok
+        if (error == NO_ERROR) { countMatch++; } // one of the function with this name is ok
     }
+    if (countMatch == 1) { return NO_ERROR; }
+    if (countMatch > 1) { return ERROR_AMBIGUOUS_CALL; }
     return error;
 }
 
@@ -385,7 +389,7 @@ ErrorType ScopeStack::CheckCallArgumentToFunc(SymbolTableElement* func, vector <
 
     reverse(expectedArgumentsTypes.begin(), expectedArgumentsTypes.end()); // OREN this is created in a reverse order in the expList 
     funcArgument = func->GetType().GetCopyOfArgumentsTypes();   
-    if (funcArgument != expectedArgumentsTypes) {
+    if (!IsArgVectorMatch(funcArgument,expectedArgumentsTypes)) {
         return ERROR_PROTOTYPE_MISMATCH; // no maching arguments 
     }
     if (expectedReturnType != "dont care") {
@@ -395,6 +399,23 @@ ErrorType ScopeStack::CheckCallArgumentToFunc(SymbolTableElement* func, vector <
     }
 
     return NO_ERROR;
+}
+
+bool IsArgVectorMatch(vector<string> funcArg, vector<string> callArg) {
+    if (funcArg.size() != callArg.size()) { return false; }
+    for (int i = 0; i<callArg.size(); i++)
+    {
+        if (funcArg[i] != "INT") {
+            if (funcArg[i] != callArg[i]) {
+                return false;
+            }
+        } else {
+            if (callArg[i] != "INT" && callArg[i] != "BYTE") { // can convert from byte to int 
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 ErrorType ScopeStack::checkIfVarExist(string expectedVarName, string expectedVarType) {
@@ -409,13 +430,12 @@ ErrorType ScopeStack::checkIfVarExist(string expectedVarName, string expectedVar
     }
     if (expectedVarType != "dont care") {
         if (expectedVarType != var->GetType().GetTypeName()
-        && !(expectedVarType =="int" && var->GetType().GetTypeName()=="byte")) {
+        && !(expectedVarType =="INT" && var->GetType().GetTypeName()=="BYTE")) {
             return ERROR_MISMATCH; //type don't match
         }
     }
     return NO_ERROR;
 }
-
 
 void ScopeStack::PushNewScope(string scope_type, string returnType, vector<pair<string,string>> types_names_arg_vector) {
     if(scope_type == "GLOBAL") ScopeStack::PushNewScope(GLOBAL_SCOPE,"");
@@ -433,7 +453,7 @@ void ScopeStack::PrintCurrentScope() {
 
 ErrorType ScopeStack::checkIfAssignedTypesAreCompatible(string expectedVarType, string givenVarType) {
     if (expectedVarType != givenVarType
-        && !(expectedVarType =="int" && givenVarType=="byte")) {
+        && !(expectedVarType =="INT" && givenVarType=="BYTE")) {
         return ERROR_MISMATCH; //type don't match
     }
     return NO_ERROR;
@@ -449,6 +469,7 @@ bool ScopeStack::CurScopeRetTypeEquals (string expected_type) {
     }
     return true;
 }
+
 bool ScopeStack::IsCurrentScopeWhile(){
     Scope cur_scope = scopes_stack.front();
     return cur_scope.GetType() != WHILE_SCOPE;

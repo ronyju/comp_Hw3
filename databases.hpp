@@ -87,7 +87,7 @@ protected:
 public:
     SymbolTable sym_table;
     Scope (SymbolTable sym_table, ScopeType scope_type) : sym_table(sym_table), scope_type(scope_type) {}
-    Scope (ScopeType scope_type) : scope_type(scope_type) {} //TODO: RONY do I need to init the sym_table somehow?
+    Scope (ScopeType scope_type) : scope_type(scope_type) {} 
     ScopeType GetType() { return scope_type; }
     void AddToScope (SymbolTableElement element) { sym_table.AddToTable(element); }
     void AddToScope(string name, TypeStruct type, int offset) { SymbolTableElement element (name, type, offset); sym_table.AddToTable(element); }
