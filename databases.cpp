@@ -316,7 +316,7 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
         expectedArgumentsTypes.push_back(pair.first);
         expectedArgumentsNames.push_back(pair.second);
     }
-    reverse(expectedArgumentsTypes.begin(), expectedArgumentsTypes.end()); // OREN this is created in a reverse order in the expList 
+    
     func = SearchInAllScopesByName (expectedFuncName, &found);
     if (!found || func == nullptr) {
         return ERROR_UNDEF_FUNC; // calling a function that was not declared.
@@ -325,29 +325,7 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
         return ERROR_UNDEF_FUNC; // using identifier that is not a func as a func.
     }
 
-    funcArgument = func->GetType().GetCopyOfArgumentsTypes();   
-    if (funcArgument != expectedArgumentsTypes) {
-    //----------------------------------------------------
-        cout << "\nRONY : funcArgument:" <<endl; //RONY remove
-        if (!funcArgument.empty()) //RONY remov
-            for (auto i : funcArgument) { //RONY remov
-                cout <<i <<", "; //RONY remov
-            } //RONY remov
-        cout << "\nRONY : expectedArgumentsTypes:" <<endl; //RONY remove
-        if (!expectedArgumentsTypes.empty()) //RONY remov
-            for (auto i : expectedArgumentsTypes) { //RONY remov
-                cout <<i <<", "; //RONY remov
-            } //RONY remov
-        cout << "\n"; //RONY remov
-    //----------------------------------------------------
-
-        return ERROR_PROTOTYPE_MISMATCH; // no maching arguments 
-    }
-    if (expectedReturnType != "dont care") {
-        if (expectedReturnType != func->GetType().GetReturnType()) {
-            return ERROR_MISMATCH; //type don't match
-        }
-    }
+    // check if the the vars that are id exist:
     for (auto var: expectedArgumentsNames) {
         if(var.second) {
             ErrorType error = checkIfVarExist(var.first);
@@ -356,6 +334,33 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
             }
         }
     }
+
+    // for arguments that are ID, need to find the types:
+    int i = 0;
+    for (auto pair : expectedArgumentsNames) {
+        if (pair.second) { //isID
+            bool found;
+            SymbolTableElement* curElem = SearchInAllScopesByName(pair.first, &found);
+            if (!found) {
+                return ERROR_UNDEF;
+            }
+            string curTypeName = curElem->GetType().GetTypeName();
+            expectedArgumentsTypes[i] = curTypeName;
+        }
+        i++;
+    }
+
+    reverse(expectedArgumentsTypes.begin(), expectedArgumentsTypes.end()); // OREN this is created in a reverse order in the expList 
+    funcArgument = func->GetType().GetCopyOfArgumentsTypes();   
+    if (funcArgument != expectedArgumentsTypes) {
+        return ERROR_PROTOTYPE_MISMATCH; // no maching arguments 
+    }
+    if (expectedReturnType != "dont care") {
+        if (expectedReturnType != func->GetType().GetReturnType()) {
+            return ERROR_MISMATCH; //type don't match
+        }
+    }
+
     return NO_ERROR;
 }
 ErrorType ScopeStack::checkIfVarExist(string expectedVarName, string expectedVarType) {
