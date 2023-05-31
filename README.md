@@ -13,6 +13,8 @@ It required a few changes you can see them in the github diff but I dont think y
 
 I checked there is a main and that its not override.
 
+I checked for errorAmbiguousCall, and tested it acurding to the yellow lines the stuff added.
+
 **What's left:**
 1. handaling the if, else, while scopes.
 notice that they wrote something a little wired about how many scopes an if gets, 
@@ -20,11 +22,10 @@ I wasnt sure whats the best way to approch it there for I havnt started working 
 you will also need to check that the break and conitue are inside While scope -> you may use this function that I wrote (return yes if the top scope is WHILE_SCOPE):
 bool IsCurrentScopeWhile();
 
-2. you will also need to add the logic to check errorAmbiguousCall. they added an extra explining about it - if I will manage to do it today I will as it is very deep in my code . will remove it if so.
-
-3. you will need to check that byte is not bigger than 255.
+2. you will need to check that byte is not bigger than 255.
 thay havnt yet answered me in the piatzza
 
+and of curse debugging the tests.. witch is the worst part :(
 
 
 
