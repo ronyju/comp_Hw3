@@ -95,10 +95,10 @@ Program     : M_GLOBAL_SCOPE Funcs                                              
 Funcs	    : /*the_empty_word*/                                                    
 		    | FuncDecl Funcs                                                      
 
-FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN {addFuncToScope($1->GetType() == "overrid",$2->GetType(),$3->GetValue(),yylineno); functionReturnType = $2->GetType();} M_FUNC_SCOPE LBRACE Statements RBRACE {popScope();}
+FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN {addFuncToScope($1->GetType() == "override",$2->GetType(),$3->GetValue(),yylineno); functionReturnType = $2->GetType();} M_FUNC_SCOPE LBRACE Statements RBRACE {popScope();}
 
 OverRide    : /*the_empty_word*/ {$$ = new Node("NONE","NONE",yylineno);}                                                  
-		    | OVERRIDE           {$$ = $1;}  //{if($1->IsOverride()) {$$=new Override(true);} else{$$=new Override(false);}}                                                     
+		    | OVERRIDE           {$$ = $1;}                                                      
 
 RetType     : Type               {$$ = $1;}                                           
 	        | VOID               {$$ = $1;}                                                
@@ -236,7 +236,7 @@ void addFuncToScope(bool isOverride,string returnType,string funcName, int yylin
     TypeStruct funcType(returnType,arguments_types,isOverride);
     SymbolTableElement funcToAdd(funcName,funcType);
     ErrorType error = scopStack.checkForErrorBeforeAddSymbolToCurrentScope(funcToAdd);
-	if(error == NO_ERROR){
+    if(error == NO_ERROR){
 		scopStack.AddSymbolToCurrentScope(funcToAdd);
 	}
     else{

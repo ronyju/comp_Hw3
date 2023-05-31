@@ -121,6 +121,7 @@ public:
     ErrorType checkForErrorBeforeAddSymbolToCurrentScope(string name, TypeStruct type, int offset = UNDEF) { SymbolTableElement element (name, type, offset); return checkForErrorBeforeAddSymbolToCurrentScope (element); }
     ErrorType checkForErrorBeforeAddSymbolToCurrentScope(SymbolTableElement element); //for both func or variable
     ErrorType checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vectorm ,string expectedReturnType = "dont care" );// Oren, if you don't care to check the return type dont add it in the arguments
+    ErrorType CheckCallArgumentToFunc(SymbolTableElement* func, vector <pair<string,bool>> expectedArgumentsNames , vector<string> expectedArgumentsTypes,  string expectedReturnType);
     ErrorType checkIfAllArgumentsExist(vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector , string* var_error_name );  
     ErrorType checkIfVarExist(string expectedVarName, string expectedVarType = "dont care"); //Oren, if you don't care to check the type don't add it in the arguments
     ErrorType checkIfAssignedTypesAreCompatible(string expectedVarName, string expectedVarType);

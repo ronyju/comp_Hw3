@@ -163,14 +163,11 @@ void ScopeStack::printStack() {
 }
 ErrorType ScopeStack::checkLegalOverride(SymbolTableElement element) {
     vector <SymbolTableElement*> allFuncs = GetAllFuncOfName(element.GetName());
-    string newFuncRetType = element.GetType().GetReturnType();
     vector<string> newFuncArgTypes = element.GetType().GetArgumentsTypes();
     for (int i = 0; i< allFuncs.size(); i++) {
-        if (newFuncRetType == allFuncs[i]->GetType().GetReturnType()) {
             if (newFuncArgTypes == allFuncs[i]->GetType().GetArgumentsTypes()) {
                 return ERROR_DEF; // new func is identical to an existing func.
             }
-        }
     }
     return NO_ERROR;
 }
@@ -335,10 +332,10 @@ string ScopeStack::GetFunctionReturnType(string funcName) {
     func = SearchInAllScopesByName(funcName, &found);
     return func->GetType().GetReturnType();
 }
+
 ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector, string expectedReturnType) {
     bool found;
     SymbolTableElement* func;
-    vector<string> funcArgument;
     vector<string> expectedArgumentsTypes;
     vector <pair<string,bool>> expectedArgumentsNames;
     for (auto pair :types_names_isId_arg_vector){
@@ -355,8 +352,23 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
     }
 
 // I am asuming you already checked if the ID var exists
+    if (!func->GetType().IsOverride()) {
+        return CheckCallArgumentToFunc (func, expectedArgumentsNames, expectedArgumentsTypes, expectedReturnType);
+    }
 
+    // func is overrid! and there might be a few with the same name, and I need to check them all.
+    vector <SymbolTableElement*> allFuncs = GetAllFuncOfName (expectedFuncName);
+    ErrorType error;
+    for ( auto cuurent_func : allFuncs){
+        error = CheckCallArgumentToFunc (cuurent_func, expectedArgumentsNames, expectedArgumentsTypes, expectedReturnType);
+        if (error == NO_ERROR) { return NO_ERROR; } // one of the function with this name is ok
+    }
+    return error;
+}
+
+ErrorType ScopeStack::CheckCallArgumentToFunc(SymbolTableElement* func, vector <pair<string,bool>> expectedArgumentsNames , vector<string> expectedArgumentsTypes,  string expectedReturnType) {
     // for arguments that are ID, need to find the types:
+    vector<string> funcArgument;
     int i = 0;
     for (auto pair : expectedArgumentsNames) {
         if (pair.second) { //isID
