@@ -13,7 +13,7 @@ typedef enum {NO_ERROR, ERROR_LEX, ERROR_SYN,
               ERROR_UNEXPECTED_BREAK, ERROR_UNEXPECTED_CONTINUE,
               ERROR_MAIN_MISSING, ERROR_BYTE_TOO_LARGE,
               ERROR_FUNC_NO_OVERRIDE, ERROR_OVERRIDE_WITHOUT_DECLARATION,
-              ERROR_AMBIGUOUS_CALL} ErrorType;
+              ERROR_AMBIGUOUS_CALL, ERROR_MAIN_OVERRIDE} ErrorType;
 
 #define NOT_FOUND nullptr
 #define NA -99999
@@ -128,6 +128,7 @@ public:
     string GetFunctionReturnType(string funcName);
     void printStack(); //for debug
     bool CurScopeRetTypeEquals (string expected_type);
+    bool IsCurrentScopeWhile();
 };
 
 

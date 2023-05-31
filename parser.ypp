@@ -7,6 +7,7 @@
     extern int yylex();
     extern int yylineno;
     extern char *yytext;
+    bool HasMain;
     ScopeStack scopStack;
     void popScope();
     void yyerror(const char*);
@@ -24,6 +25,7 @@
     void checkIfConversionLegit(string new_type, string old_type, string name, int yylineno);
     void checkRet(string valType, string valName, int yylino);
     void checkIfExpIsBool (Node* exp, int yylino);
+    
 
 
 // RONY for debug remove before submiting :
@@ -91,12 +93,12 @@
 
 %%
 //rules
-Program     : M_GLOBAL_SCOPE Funcs                                                              {popScope();}  
+Program     : M_GLOBAL_SCOPE Funcs                                                              {popScope(); if (!HasMain) {handleErrorCode(ERROR_MAIN_MISSING, yylineno, "NONE" ,"needToAddValueForByteError");}}  
 
 Funcs	    : /*the_empty_word*/                                                    
 		    | FuncDecl Funcs                                                      
 
-FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN {addFuncToScope($1->GetType() == "override",$2->GetType(),$3->GetValue(),yylineno); functionReturnType = $2->GetType();} M_FUNC_SCOPE LBRACE Statements RBRACE {popScope();}
+FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN { if ($3->GetValue() == "main") { HasMain = true; } addFuncToScope($1->GetType() == "override",$2->GetType(),$3->GetValue(),yylineno); functionReturnType = $2->GetType();} M_FUNC_SCOPE LBRACE Statements RBRACE {popScope();}
 
 OverRide    : /*the_empty_word*/ {$$ = new Node("NONE","NONE",yylineno);}                                                  
 		    | OVERRIDE           {$$ = $1;}                                                      
@@ -246,6 +248,9 @@ string GetFunctionReturnTypeByName (string name) {
 }
 
 void addFuncToScope(bool isOverride,string returnType,string funcName, int yylineno){
+    if (isOverride && funcName == "main") {
+        handleErrorCode(ERROR_MAIN_OVERRIDE, yylineno, "NON","needToAddValueForByteError");
+    }
     vector<string> arguments_types;
     for (auto pair : types_names_arg_vector) {
             arguments_types.push_back(pair.first);
@@ -457,6 +462,9 @@ void handleErrorCode(ErrorType error, int lineno, const string& name, const stri
             break;
         case ERROR_AMBIGUOUS_CALL:
             output::errorAmbiguousCall(lineno, name);
+            break;
+        case ERROR_MAIN_OVERRIDE:
+            output::errorMainOverride(lineno);
             break;
         default:
             std::cout << "Unknown error." << std::endl;

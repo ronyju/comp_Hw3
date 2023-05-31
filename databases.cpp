@@ -449,4 +449,7 @@ bool ScopeStack::CurScopeRetTypeEquals (string expected_type) {
     }
     return true;
 }
-
+bool ScopeStack::IsCurrentScopeWhile(){
+    Scope cur_scope = scopes_stack.front();
+    return cur_scope.GetType() != WHILE_SCOPE;
+}
