@@ -1,5 +1,7 @@
 # comp_Hw3
-**Changes 31.5.2023:**
+**Changes 31.5.2023:** 
+Download all the files from here as the stuff changed output files.
+
 this are the things I added and tested:
 from the instructions : I did 
 5 + 8 + 9 + 10 + 16 + 17 (also in the whatsapp group).
