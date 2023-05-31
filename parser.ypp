@@ -222,7 +222,13 @@ void assignNewValToExistName(string name,string givenType, int lineno) {
 }
 
 void checkAfterCallIfFuncExist (string func_name) {
-    ErrorType error =  scopStack.checkAfterCallIfFuncExist(func_name, types_names_isId_arg_vector );  
+    string var_error_name;
+    ErrorType error = scopStack.checkIfAllArgumentsExist(types_names_isId_arg_vector , &var_error_name );  
+    if (error != NO_ERROR) {
+        handleErrorCode(error, yylineno, var_error_name,"needToAddValueForByteError");
+    }
+
+    error =  scopStack.checkAfterCallIfFuncExist(func_name, types_names_isId_arg_vector );  
     if (error != NO_ERROR) {
         handleErrorCode(error, yylineno, func_name,"needToAddValueForByteError");
     }

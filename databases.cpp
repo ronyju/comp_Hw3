@@ -306,7 +306,28 @@ ErrorType ScopeStack::checkForErrorBeforeAddSymbolToCurrentScope(SymbolTableElem
 
     return NO_ERROR;
 }
-ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector, string expectedReturnType ) {
+
+ErrorType ScopeStack::checkIfAllArgumentsExist(vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector , string* var_error_name ) { 
+    vector <pair<string,bool>> expectedArgumentsNamesIsId;
+    for (auto pair :types_names_isId_arg_vector){
+        expectedArgumentsNamesIsId.push_back(pair.second);
+    }
+
+    // check if the the vars that are id exist:
+    for (auto var: expectedArgumentsNamesIsId) {
+        if(var.second) {
+            ErrorType error = checkIfVarExist(var.first);
+            if (error != NO_ERROR) {
+                *var_error_name = var.first;
+                return error;
+            }
+        }
+    }
+    return NO_ERROR;
+}
+   
+
+ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector, string expectedReturnType) {
     bool found;
     SymbolTableElement* func;
     vector<string> funcArgument;
@@ -325,15 +346,7 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
         return ERROR_UNDEF_FUNC; // using identifier that is not a func as a func.
     }
 
-    // check if the the vars that are id exist:
-    for (auto var: expectedArgumentsNames) {
-        if(var.second) {
-            ErrorType error = checkIfVarExist(var.first);
-            if (error != NO_ERROR) {
-                return error;
-            }
-        }
-    }
+// I am asuming you already checked if the ID var exists
 
     // for arguments that are ID, need to find the types:
     int i = 0;
@@ -341,7 +354,7 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
         if (pair.second) { //isID
             bool found;
             SymbolTableElement* curElem = SearchInAllScopesByName(pair.first, &found);
-            if (!found) {
+            if (!found) { // should not happen! but just in case. 
                 return ERROR_UNDEF;
             }
             string curTypeName = curElem->GetType().GetTypeName();
@@ -363,6 +376,7 @@ ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<
 
     return NO_ERROR;
 }
+
 ErrorType ScopeStack::checkIfVarExist(string expectedVarName, string expectedVarType) {
     bool found;
     SymbolTableElement* var;
