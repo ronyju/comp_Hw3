@@ -26,7 +26,7 @@
     void checkRet(string valType, string valName, int yylino);
     void checkIfExpIsBool (Node* exp, int yylino);
     
-
+    #define MAX_BYTE 255
 
 //  for debug remove before submiting :
 //    #define YYERROR_VERBOSE 1 

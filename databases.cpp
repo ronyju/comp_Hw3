@@ -165,7 +165,7 @@ ErrorType ScopeStack::checkLegalOverride(SymbolTableElement element) {
     vector <SymbolTableElement*> allFuncs = GetAllFuncOfName(element.GetName());
     vector<string> newFuncArgTypes = element.GetType().GetArgumentsTypes();
     for (int i = 0; i< allFuncs.size(); i++) {
-            if (newFuncArgTypes == allFuncs[i]->GetType().GetArgumentsTypes()) {
+            if ( (newFuncArgTypes == allFuncs[i]->GetType().GetArgumentsTypes()) && (allFuncs[i]->GetType().GetReturnType() == element.GetType().GetReturnType()) ) {
                 return ERROR_DEF; // new func is identical to an existing func.
             }
     }
