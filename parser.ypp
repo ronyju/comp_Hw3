@@ -17,8 +17,10 @@
     vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector;
     void handleErrorCode(ErrorType error, int lineno, const string& name, const string& value);
     void assignNewValToExistName(string name,string givenType, int lineno);
-    Node* handeleMultiplacativeAndAdditive(Node* exp1,Node* exp2,int yylineno);
+    Node* handeleMultiplacativeAndAdditiveORRelop(Node* exp1,Node* exp2 ,int yylineno, int isRelop = false);
     void checkAfterCallIfFuncExist (string func_name);
+    string GetFunctionReturnTypeByName (string name);
+   
 
 
 // RONY for debug remove before submiting :
@@ -131,15 +133,15 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
                         | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE" ,yylineno);}                       
                         | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() ,yylineno);}                                             
                         | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3->GetType() , yylineno);}                                         
-                        | Call SC                                                              
+                        | Call SC                                           {$$ = $1;}                  
                         | RETURN SC                                                            
                         | RETURN Exp SC                                                       
                         | BREAK SC                                                             
                         | CONTINUE SC                                                         
 
 
-Call 	    : ID LPAREN ExpList RPAREN    { checkAfterCallIfFuncExist($1->GetValue()); }                                     
-            | ID LPAREN RPAREN            { checkAfterCallIfFuncExist($1->GetValue()); }                                        
+Call 	    : ID LPAREN ExpList RPAREN    { checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno); }                                     
+            | ID LPAREN RPAREN            { checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno); }                                        
 
 ExpList	    : Exp	                     {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));}                                     
 		    | Exp COMMA ExpList          {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));}                                          
@@ -156,8 +158,8 @@ Exp         : NumericExp    {$$ = $1;}
             ;
 
 NumericExp  : LPAREN Exp RPAREN            {$$ = $2;} //{$$ = dynamic_cast<NumericExp*>($2);}                                        
-             | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditive($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"mult",yylineno);}                                  
-             | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditive($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"add",yylineno);}                                     
+             | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"mult",yylineno);}                                  
+             | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"add",yylineno);}                                     
 
 SingleExp   : ID                      	{$$ = $1;} //{$$ = new SingleExp($1->GetTypeName(),"id",yylineno);}           //for id Type.type== name of ID                                
             | Call                      {$$ = $1;}//{$$ = dynamic_cast<SingleExp*>($1);}                                        
@@ -167,12 +169,12 @@ SingleExp   : ID                      	{$$ = $1;} //{$$ = new SingleExp($1->GetT
             | TRUE                      {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"bool",yylineno);}                                       
             | FALSE                     {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"bool",yylineno);}                                      
 
-complexExp  : NOT Exp                    //{$$ = new complexExp($2,"not",yylineno);}                                          
-            | Exp AND Exp                //{$$ = new complexExp($1,$3,"and",yylineno);}                                       
-            | Exp OR Exp                 //{$$ = new complexExp($1,$3,"or",yylineno);}                                    
-            | Exp RELATIONAL Exp         //{$$ = new complexExp($1,$3,"relational",yylineno);}                                    
-            | Exp EQUALITY Exp           //{$$ = new complexExp($1,$3,"equal",yylineno);}                                      
-            | LPAREN Type RPAREN Exp     //{$$ = new complexExp($2,$4,"conversion",yylineno);}                                     
+complexExp  : NOT Exp                                                        
+            | Exp AND Exp                                                  
+            | Exp OR Exp                                              
+            | Exp RELATIONAL Exp        {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);}                                        
+            | Exp EQUALITY Exp          {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);}                                         
+            | LPAREN Type RPAREN Exp                                       
 
 //markers
 M_GLOBAL_SCOPE:                   {scopStack.PushNewScope("GLOBAL");}
@@ -193,6 +195,9 @@ void yyerror(const char*)
 }
 
 
+string GetFunctionReturnTypeByName (string name) {
+    return scopStack.GetFunctionReturnType(name);
+}
 
 void addFuncToScope(bool isOverride,string returnType,string funcName, int yylineno){
     vector<string> arguments_types;
@@ -201,7 +206,6 @@ void addFuncToScope(bool isOverride,string returnType,string funcName, int yylin
     }
     TypeStruct funcType(returnType,arguments_types,isOverride);
     SymbolTableElement funcToAdd(funcName,funcType);
-    //TODO:oren need to add check for every arg of func
     ErrorType error = scopStack.checkForErrorBeforeAddSymbolToCurrentScope(funcToAdd);
 	if(error == NO_ERROR){
 		scopStack.AddSymbolToCurrentScope(funcToAdd);
@@ -248,7 +252,8 @@ void addElementToScope(string type, string name, string valueType , int yylineno
     }
 }
 
-Node* handeleMultiplacativeAndAdditive(Node* exp1,Node* exp2 ,int yylineno){
+
+Node* handeleMultiplacativeAndAdditiveORRelop(Node* exp1,Node* exp2 ,int yylineno, int isRelop /*= false*/) {
     ErrorType error;
     string exp1Type = exp1->GetType();
     string exp2Type = exp2->GetType();
@@ -285,15 +290,17 @@ Node* handeleMultiplacativeAndAdditive(Node* exp1,Node* exp2 ,int yylineno){
         handleErrorCode(ERROR_MISMATCH, yylineno, "NONE" ,"needToAddValueForByteError");
     }
 
-
     // decide what type tp retuen
     string returnType;
-    if (exp1Type == "INT" || exp2Type == "INT") {
-        returnType = "INT";
+    if (!isRelop){       
+        if (exp1Type == "INT" || exp2Type == "INT") {
+            returnType = "INT";
+        } else {
+            returnType = "BYTE";
+        }
     } else {
-        returnType = "BYTE";
+        returnType = "BOOL";
     }
-
     //create new node
     Node* newNode = new Node(returnType, "NONE", yylineno);
     return newNode;

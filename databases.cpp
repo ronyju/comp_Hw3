@@ -326,7 +326,13 @@ ErrorType ScopeStack::checkIfAllArgumentsExist(vector<pair<string,pair<string,bo
     return NO_ERROR;
 }
    
-
+string ScopeStack::GetFunctionReturnType(string funcName) {
+    //assuming that the func exist! and really is a func
+    bool found;
+    SymbolTableElement* func;
+    func = SearchInAllScopesByName(funcName, &found);
+    return func->GetType().GetReturnType();
+}
 ErrorType ScopeStack::checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector, string expectedReturnType) {
     bool found;
     SymbolTableElement* func;
