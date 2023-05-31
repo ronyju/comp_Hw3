@@ -1,6 +1,34 @@
 # comp_Hw3
+Changes 31.5.2023:
+this are the things I added and tested:
+from the instructions :
+5. הטיפוס של ביטוי Call נקבע לפי טיפוס ההחזרה של הפונקציה הנקראת
+8. ניתן לבצע השמה מפורשת מint או מbyte לint או לbyte באמצעות הפקודה <value)<byte (או <value)<int (כאשר value הוא ביטוי מטיפוס int או byte.)
+9. פעולות relop מקבלות שני אופרנדים מטיפוסים מספריים. טיפוס ההחזרה של הביטוי הוא bool.
+10. פעולות לוגיות ( not ,or ,and )מקבלות אופרנדים מטיפוס bool. טיפוס ההחזרה של הביטוי הוא bool.
+16. באותו אופן, בפונקציה המחזירה ערך, טיפוס ה-Exp בכל �𝑥𝐸� �𝑅𝑈𝑇𝐸𝑅� חייב להיות מותר להשמה לטיפוס ההחזרה
+בהגדרת הפונקציה.
+17.פקודות if ו-while מקבלות Exp מטיפוס בוליאני.
 
-new changes since we spoke:
+other than that:
+I made sure the override function calling and creating workes and throu the right error.
+It required a few changes you can see them in the github diff but I dont think you need to get into it really.
+
+I think that what you have left is handaling the if, else, while scopes.
+notice that they wrote something a little compusing about how mant scopes an if gets, 
+I wasnt sure whats the best way to approch it there for I havnt started woriking in this erea. 
+you will also need to check that the break and conitue are inside While scope = use this function that I created (return yes if the top scope is WHILE_SCOPE):
+bool IsCurrentScopeWhile();
+
+
+
+
+
+
+
+
+
+old changes since we spoke:
 *offset for function arguments added.
 *added enum for all the errors we have, you may use it in your code too.
 
