@@ -18,9 +18,11 @@
     void handleErrorCode(ErrorType error, int lineno, const string& name, const string& value);
     void assignNewValToExistName(string name,string givenType, int lineno);
     Node* handeleMultiplacativeAndAdditiveORRelop(Node* exp1,Node* exp2 ,int yylineno, int isRelop = false);
+    Node* handleBoolean (Node* exp1,Node* exp2 ,int yylineno);
     void checkAfterCallIfFuncExist (string func_name);
     string GetFunctionReturnTypeByName (string name);
-   
+    void checkIfConversionLegit(string new_type, string old_type, string name, int yylineno);
+    void checkRet(string valType, string valName, int yylino);
 
 
 // RONY for debug remove before submiting :
@@ -93,7 +95,7 @@ Program     : M_GLOBAL_SCOPE Funcs                                              
 Funcs	    : /*the_empty_word*/                                                    
 		    | FuncDecl Funcs                                                      
 
-FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN {addFuncToScope($1->GetType() == "overrid",$2->GetType(),$3->GetValue(),yylineno);} M_FUNC_SCOPE LBRACE Statements RBRACE {popScope();}
+FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN {addFuncToScope($1->GetType() == "overrid",$2->GetType(),$3->GetValue(),yylineno); functionReturnType = $2->GetType();} M_FUNC_SCOPE LBRACE Statements RBRACE {popScope();}
 
 OverRide    : /*the_empty_word*/ {$$ = new Node("NONE","NONE",yylineno);}                                                  
 		    | OVERRIDE           {$$ = $1;}  //{if($1->IsOverride()) {$$=new Override(true);} else{$$=new Override(false);}}                                                     
@@ -134,8 +136,8 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
                         | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() ,yylineno);}                                             
                         | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3->GetType() , yylineno);}                                         
                         | Call SC                                           {$$ = $1;}                  
-                        | RETURN SC                                                            
-                        | RETURN Exp SC                                                       
+                        | RETURN SC                                         {$$ = $1; checkRet("VOID" ,"", yylineno); }                                                          
+                        | RETURN Exp SC                                     {$$ = $1; checkRet($2->GetType(), $2->GetValue() , yylineno); }
                         | BREAK SC                                                             
                         | CONTINUE SC                                                         
 
@@ -158,32 +160,32 @@ Exp         : NumericExp    {$$ = $1;}
             ;
 
 NumericExp  : LPAREN Exp RPAREN            {$$ = $2;} //{$$ = dynamic_cast<NumericExp*>($2);}                                        
-             | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"mult",yylineno);}                                  
-             | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);}//{$$ = new NumericExp($1,$3,"add",yylineno);}                                     
+             | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);}                                 
+             | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);}                                    
 
-SingleExp   : ID                      	{$$ = $1;} //{$$ = new SingleExp($1->GetTypeName(),"id",yylineno);}           //for id Type.type== name of ID                                
-            | Call                      {$$ = $1;}//{$$ = dynamic_cast<SingleExp*>($1);}                                        
-            | NUM                       {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"int",yylineno);}                                           
-            | NUM B                     {$$ = new Node($2->GetType(), $1->GetValue(), yylineno);}//{$$ = new SingleExp($1->GetTypeName(),"byte",yylineno);}                                              
-            | STRING                    {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"string",yylineno);}                                         
-            | TRUE                      {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"bool",yylineno);}                                       
-            | FALSE                     {$$ = $1;}//{$$ = new SingleExp($1->GetTypeName(),"bool",yylineno);}                                      
+SingleExp   : ID                      	{$$ = $1;} 
+            | Call                      {$$ = $1;}                                      
+            | NUM                       {$$ = $1;}                                          
+            | NUM B                     {$$ = new Node($2->GetType(), $1->GetValue(), yylineno);}                                              
+            | STRING                    {$$ = $1;}                                        
+            | TRUE                      {$$ = $1;}                                      
+            | FALSE                     {$$ = $1;}                                      
 
-complexExp  : NOT Exp                                                        
-            | Exp AND Exp                                                  
-            | Exp OR Exp                                              
+complexExp  : NOT Exp                   {$$ = handleBoolean($2, NULL, yylineno);}                                                     
+            | Exp AND Exp               {$$ = handleBoolean($1, $3, yylineno);}                                         
+            | Exp OR Exp                {$$ = handleBoolean($1, $3, yylineno);}                             
             | Exp RELATIONAL Exp        {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);}                                        
             | Exp EQUALITY Exp          {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);}                                         
-            | LPAREN Type RPAREN Exp                                       
+            | LPAREN Type RPAREN Exp    { checkIfConversionLegit($2->GetType(), $4->GetType(), $4->GetValue(), yylineno); $$ = new Node ($2->GetType(), $4->GetValue(), yylineno); }                                   
 
 //markers
-M_GLOBAL_SCOPE:                   {scopStack.PushNewScope("GLOBAL");}
-//M2:                 {scopStack.PushNewScope("WHILE");}
-//M3:                 {scopStack.PushNewScope("IF");}
-//M4:                 {scopStack.PushNewScope("ELSE");}
-M_FUNC_SCOPE:         { scopStack.PushNewScope("FUNC",types_names_arg_vector);
+M_GLOBAL_SCOPE:                   {scopStack.PushNewScope("GLOBAL","");}
+//M2:                 {scopStack.PushNewScope("WHILE","");}
+//M3:                 {scopStack.PushNewScope("IF","");}
+//M4:                 {scopStack.PushNewScope("ELSE","");}
+M_FUNC_SCOPE:         { scopStack.PushNewScope("FUNC", functionReturnType, types_names_arg_vector);
                         types_names_arg_vector.clear();}
-M_REGULAR_SCOPE:                   {scopStack.PushNewScope("REGULAR");}
+M_REGULAR_SCOPE:                   {scopStack.PushNewScope("REGULAR","");}
 //M7:                 {/*need to add*/}
 
 %%
@@ -195,6 +197,33 @@ void yyerror(const char*)
 }
 
 
+void checkRet(string valType, string valName, int yylino) {
+    if (valType == "ID") {
+        bool found = true;
+        SymbolTableElement* element = scopStack.SearchInAllScopesByName(valName, &found);
+        if (!found){
+            handleErrorCode(ERROR_UNDEF, yylineno, valName ,"needToAddValueForByteError");
+        }
+        valType = element->GetType().GetTypeName();
+    }
+    if (!scopStack.CurScopeRetTypeEquals(valType)) {
+        handleErrorCode(ERROR_MISMATCH, yylineno, "" ,"needToAddValueForByteError");
+    }    
+}
+
+void checkIfConversionLegit(string new_type, string old_type, string name, int yylineno) {
+    if (old_type == "ID") {
+        bool found = true;
+        SymbolTableElement* element = scopStack.SearchInAllScopesByName(name, &found);
+        if (!found){
+            handleErrorCode(ERROR_UNDEF, yylineno, name ,"needToAddValueForByteError");
+        }
+        old_type = element->GetType().GetTypeName();
+    }
+    if ( (new_type!="INT" && new_type!= "BYTE")  || (old_type!="INT" && old_type!= "BYTE")) {
+        handleErrorCode (ERROR_MISMATCH, yylineno, name ,"needToAddValueForByteError");
+    }
+}
 string GetFunctionReturnTypeByName (string name) {
     return scopStack.GetFunctionReturnType(name);
 }
@@ -252,6 +281,53 @@ void addElementToScope(string type, string name, string valueType , int yylineno
     }
 }
 
+Node* handleBoolean (Node* exp1,Node* exp2 ,int yylineno) {
+    ErrorType error;
+    string exp1Type = exp1->GetType();
+    string exp2Type;
+    if (exp2!=NULL) {
+        exp2Type = exp2->GetType();
+    } else {
+        exp2Type = "BOOL";
+    }  
+    // check if exp is BOOL/ID if non of them so error
+    if((exp1Type!="BOOL" && exp1Type!="ID" ) || (exp2Type!="BOOL" && exp2Type!="ID")){
+        handleErrorCode(ERROR_MISMATCH, yylineno, "NONE" ,"needToAddValueForByteError");
+    }
+
+    // check if exist
+    bool found1 = true;
+    bool found2 = true;
+    SymbolTableElement* element1;
+    SymbolTableElement* element2;
+    if(exp1Type=="ID"){
+        element1 = scopStack.SearchInAllScopesByName(exp1->GetValue(), &found1);
+    }
+    if (!found1){
+        handleErrorCode(ERROR_UNDEF, yylineno, exp1->GetValue() ,"needToAddValueForByteError");
+    }
+    if (exp2Type=="ID"){
+        element2 = scopStack.SearchInAllScopesByName(exp2->GetValue(), &found2);
+    }
+    if (!found2){
+        handleErrorCode(ERROR_UNDEF, yylineno, exp2->GetValue() ,"needToAddValueForByteError");
+    }  
+
+    // check if type match
+    if (exp1Type=="ID") {
+        exp1Type = element1->GetType().GetTypeName();
+    }
+    if (exp2Type=="ID") {
+        exp2Type = element2->GetType().GetTypeName();
+    }
+    if ((exp1Type!="BOOL")|| (exp2Type!="BOOL")) {
+        handleErrorCode(ERROR_MISMATCH, yylineno, "NONE" ,"needToAddValueForByteError");
+    }
+
+    //create new node
+    Node* newNode = new Node("BOOL", "NONE", yylineno);
+    return newNode;
+}
 
 Node* handeleMultiplacativeAndAdditiveORRelop(Node* exp1,Node* exp2 ,int yylineno, int isRelop /*= false*/) {
     ErrorType error;

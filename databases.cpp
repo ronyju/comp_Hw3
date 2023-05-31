@@ -225,7 +225,8 @@ void ScopeStack::printOffsetStack() {
     cout << "--------------------------------- "<<endl;
 }
 
-void ScopeStack::PushNewScope(ScopeType scope_type, vector<pair<string,string>> types_names_arg_vector) {
+
+void ScopeStack::PushNewScope(ScopeType scope_type, string returnType, vector<pair<string,string>> types_names_arg_vector) {
     // meaning add a new scope with empty table.
     if (scopes_stack.empty()) {// this is the first scope
         offset_stack.push_front(0);
@@ -234,6 +235,7 @@ void ScopeStack::PushNewScope(ScopeType scope_type, vector<pair<string,string>> 
         offset_stack.push_front(cur_offset_in_stack);
     }
     Scope new_scope (scope_type);
+    if (scope_type == FUNC_SCOPE) { new_scope.SetFuncReturnType(returnType); }
     scopes_stack.push_front(new_scope);
     if(scope_type == GLOBAL_SCOPE){
         //add library function print:string->void to global scope
@@ -402,13 +404,14 @@ ErrorType ScopeStack::checkIfVarExist(string expectedVarName, string expectedVar
     return NO_ERROR;
 }
 
-void ScopeStack::PushNewScope(string scope_type,vector<pair<string,string>> types_names_arg_vector) {
-    if(scope_type == "GLOBAL") ScopeStack::PushNewScope(GLOBAL_SCOPE);
-    else if(scope_type == "WHILE") ScopeStack::PushNewScope(WHILE_SCOPE);
-    else if(scope_type == "IF") ScopeStack::PushNewScope(IF_SCOPE);
-    else if(scope_type == "ELSE") ScopeStack::PushNewScope(ELSE_SCOPE);
-    else if(scope_type == "FUNC") ScopeStack::PushNewScope(FUNC_SCOPE,types_names_arg_vector);
-    else if(scope_type == "REGULAR") ScopeStack::PushNewScope(REGULAR_SCOPE);
+
+void ScopeStack::PushNewScope(string scope_type, string returnType, vector<pair<string,string>> types_names_arg_vector) {
+    if(scope_type == "GLOBAL") ScopeStack::PushNewScope(GLOBAL_SCOPE,"");
+    else if(scope_type == "WHILE") ScopeStack::PushNewScope(WHILE_SCOPE,"");
+    else if(scope_type == "IF") ScopeStack::PushNewScope(IF_SCOPE,"");
+    else if(scope_type == "ELSE") ScopeStack::PushNewScope(ELSE_SCOPE,"");
+    else if(scope_type == "FUNC") ScopeStack::PushNewScope(FUNC_SCOPE,returnType,types_names_arg_vector);
+    else if(scope_type == "REGULAR") ScopeStack::PushNewScope(REGULAR_SCOPE,"");
 }
 
 void ScopeStack::PrintCurrentScope() {
@@ -416,11 +419,22 @@ void ScopeStack::PrintCurrentScope() {
     scopes_stack.front().PrintScope();
 }
 
-ErrorType ScopeStack::checkIfAssignedTypesAreCompatible(string expectedVarType, string givenVarType){
+ErrorType ScopeStack::checkIfAssignedTypesAreCompatible(string expectedVarType, string givenVarType) {
     if (expectedVarType != givenVarType
         && !(expectedVarType =="int" && givenVarType=="byte")) {
         return ERROR_MISMATCH; //type don't match
     }
     return NO_ERROR;
+}
+
+bool ScopeStack::CurScopeRetTypeEquals (string expected_type) {
+    Scope cur_scope = scopes_stack.front();
+    if (cur_scope.GetType() != FUNC_SCOPE) {
+        return false;
+    }
+    if (cur_scope.GetFuncReturnType() != expected_type) {
+        return false;
+    }
+    return true;
 }
 

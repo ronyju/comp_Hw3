@@ -83,6 +83,7 @@ public:
 class Scope {
 protected:
     ScopeType scope_type;
+    string funcReturnType; // relevant only to FUNC scoop.
 public:
     SymbolTable sym_table;
     Scope (SymbolTable sym_table, ScopeType scope_type) : sym_table(sym_table), scope_type(scope_type) {}
@@ -94,7 +95,8 @@ public:
     string ScopeTypeStr();
     string ToString () { return "[ scope : type - " + ScopeTypeStr() + ", table :\n" + sym_table.ToString(); + " ]"; }
     void PrintScope();
-
+    void SetFuncReturnType(string returnType) { funcReturnType = returnType; }
+    string GetFuncReturnType() { return funcReturnType; }
 };
 /* --------------------------- stack of scopes --------------------------- */
 class ScopeStack {
@@ -112,8 +114,8 @@ public:
     // for outside use:
     void AddSymbolToCurrentScope(SymbolTableElement element);
     void AddSymbolToCurrentScope(string name, TypeStruct type, int offset = UNDEF) { SymbolTableElement element (name, type, offset); return AddSymbolToCurrentScope (element); }
-    void PushNewScope(ScopeType scope_type, vector<pair<string,string>> types_names_arg_vector = vector<pair<string,string>>());
-    void PushNewScope(string scope_type,vector<pair<string,string>> types_names_arg_vector = vector<pair<string,string>>());
+    void PushNewScope(ScopeType scope_type, string returnType, vector<pair<string,string>> types_names_arg_vector = vector<pair<string,string>>());
+    void PushNewScope(string scope_type, string returnType, vector<pair<string,string>> types_names_arg_vector = vector<pair<string,string>>());
     void AddArgumentToCurrentScope(SymbolTableElement element);
     void PopScope();
     ErrorType checkForErrorBeforeAddSymbolToCurrentScope(string name, TypeStruct type, int offset = UNDEF) { SymbolTableElement element (name, type, offset); return checkForErrorBeforeAddSymbolToCurrentScope (element); }
@@ -124,6 +126,7 @@ public:
     ErrorType checkIfAssignedTypesAreCompatible(string expectedVarName, string expectedVarType);
     string GetFunctionReturnType(string funcName);
     void printStack(); //for debug
+    bool CurScopeRetTypeEquals (string expected_type);
 };
 
 
