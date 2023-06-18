@@ -34,6 +34,33 @@ public:
         return bufferPtr->makelist(make_pair(theHole,FIRST));
     }
 
+    string GetRegFromId (string idName) {
+        // this function is looking for an ID in the scope, and return its curent register.
+        bool found;
+        SymbolTableElement* element = scopStack.SearchInAllScopesByName(idName, &found);
+        if (!found) {
+            std::cout << "elemnt with id name = " << idName <<" not found! " << std::endl; //TODO: remove before submit
+            return "";
+        }
+        if (element->GetReg() == REG_UNDEF) {
+            std::cout << "elemnt with id name = " << idName <<" register is undef " << std::endl; //TODO: remove before submit
+            return "";
+        }
+        return GetRegName(element->GetReg());
+    }
+
+
+    string GetTypeFromId (string idName) {
+        // this function is looking for an ID in the scope, and return its curent register.
+        bool found;
+        SymbolTableElement* element = scopStack.SearchInAllScopesByName(idName, &found);
+        if (!found) {
+            std::cout << "elemnt with id name = " << idName <<" not found! " << std::endl; //TODO: remove before submit
+            return "";
+        }
+        return element->GetType().GetTypeName();
+    }
+
     void SetGlobalAndPrintToBuffer(){
         AddGlobalsToBuffer();
         bufferPtr->printGlobalBuffer();
@@ -126,7 +153,7 @@ public:
         return "%t"+std::to_string(regNum);
     }
 
-    void IdDeclareEmitToBuff (string typeName, string varName) {
+    string IdDeclareEmitToBuff (string typeName, string varName) {
         int idRegNum = bufferPtr->GetFreshVar();
         string llvmType = ConvertTypeToLLVM(typeName);
         string defaultType = "0";
@@ -145,25 +172,28 @@ public:
             std::cout <<" error in IdDeclareEmitToBuff couldn't find element of name "<< varName << endl;
         }
         element->SetReg(idRegNum);
+        return GetRegName(idRegNum);
     }
 
-    void IdAssignEmitToBuff (string typeName, string varName,string value,string valueType) {
-        std::cout <<"IdAssignEmitToBuff typeName = "<< typeName << " varName = "<< varName<< " value = "<< value<< " valueType = "<<valueType << std::endl; //TODO: remove before submit
+    string IdAssignEmitToBuff (string typeName, string varName,string value,string valueType, string valueReg) {
+        std::cout << "rony. valueReg = "<< valueReg <<" and valueType = "<< valueType << " and value = " << value<<endl; //TODO: remove befor submit 
         int idRegNum = bufferPtr->GetFreshVar();
         int valueRegNum = bufferPtr->GetFreshVar();
         string newValue = value;
+        bool isID;
+        if (value == "NONE") { newValue = valueReg; value = valueReg; isID = true;} // for example int x = 3 + 5 , EXP = 3+5. EXP->GetValue() = "NONE" and its reg was updated.
         string llvmType = ConvertTypeToLLVM(typeName);
 
         bufferPtr->emit(GetRegName(idRegNum) + " = alloca i32");
 
         if (valueType == "ID") {
 //TODO: fill up with load in the middle
-        } else {
-            if (valueType == "BOOL") {
+        } else { // if isID it was already converted to i32!
+            if (valueType == "BOOL" && !isID) {
                 int boolVar = bufferPtr->GetFreshVar();
                 newValue = GetRegName(boolVar);
                 bufferPtr->emit(GetRegName(boolVar) + " = zext i1 " + value +" to i32");
-            } else if (valueType == "BYTE") {
+            } else if (valueType == "BYTE" && !isID) {
                 int byteVar = bufferPtr->GetFreshVar();
                 newValue = GetRegName(byteVar);
                 bufferPtr->emit(GetRegName(byteVar) + " = zext i8 " + value + " to i32");
@@ -177,6 +207,7 @@ public:
             std::cout << " error in IdAssignEmitToBuff couldn't find element of name " << varName << endl;
         }
         element->SetReg(idRegNum);
+        return GetRegName(idRegNum);
     }
 
     void Patch(const string label,vector<pair<int,BranchLabelIndex>> nextListToPatch ){
@@ -209,7 +240,7 @@ public:
         return "";
     }
 
-    int EmitRelational (string leftValue, string leftType, string rightValue, string rightType, string oper) {
+    int EmitRelational (string leftValue, string leftType, string rightValue, string rightType, string oper, string& resultRegName) {
         // TODO: if one of them or both is ID change leftValue and  rightValue to its curRegister
         string resultReg =  GetRegName(bufferPtr->GetFreshVar());
         string llvmOper = OperToLlvm(oper);
@@ -226,12 +257,11 @@ public:
         }
 
         bufferPtr->emit(resultReg + " = icmp " + llvmOper + " i32 " + leftValue + " , " + rightValue);
-
+        resultRegName = resultReg;
         return BooleanBranchJumpEmit(resultReg);
-
     }
 
-    int BooleanBranchJumpEmit(string boolReg ) {
+    int BooleanBranchJumpEmit(string boolReg) {
         int addressOfHole =  bufferPtr->emit("br i1 " + boolReg + " , label @, label @");
         return addressOfHole;
     }
@@ -242,6 +272,78 @@ public:
         }
     }
 
+    string GetOpFromSign (string sign) {
+        if (sign == "+") {return "add";}
+        if (sign == "-") {return "sub";}
+        if (sign == "*") {return "mul";}
+        if (sign == "/") {return "sub";}
+        std::cout <<"Error in GetOpFromSign op - " << sign <<" is unknown";
+        return "";
+    }
+
+    string AddetiveEmit (string sign , string leftValue, string leftType, string rightValue , string rightType) {
+        // TODO: if they are ID and not TYPE - must convert.
+        bool leftIsID = (leftType == "ID");  
+        bool rightIsID = (rightType == "ID");  
+        if (leftIsID) {
+            string leftIdName = leftValue;
+            leftType = GetTypeFromId(leftIdName);
+            leftValue = GetRegFromId(leftIdName);
+        }
+
+        if (rightIsID) {
+            string rightIdName = rightValue;
+            rightType = GetTypeFromId(rightIdName);
+            rightValue = GetRegFromId(rightIdName);
+        }
+
+        string newVar = GetRegName(bufferPtr->GetFreshVar());
+        string operation = GetOpFromSign(sign);
+        bool bothSidesAreByte = (leftType == "BYTE") && (rightType == "BYTE");
+        bool onlyRightIsByte = (leftType != "BYTE") && (rightType == "BYTE");
+        bool onlyLeftIsByte = (leftType == "BYTE") && (rightType != "BYTE");
+        bool bothSidesAreINT = (leftType != "BYTE") && (rightType != "BYTE");
+
+        if (bothSidesAreByte && !leftIsID && !rightIsID) { // result is BYTE:
+            // this is added because maybe the value is stored in a reg that was alloca, and then its i32* and not i32.
+            string tempRightReg = GetRegName(bufferPtr->GetFreshVar());
+            string templeftReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(tempRightReg + " = load i8, i8* " + rightValue ); 
+            bufferPtr->emit(templeftReg + " = load i8, i8* " + leftValue );
+            
+            bufferPtr->emit(newVar + " = " + operation + " i8 " + templeftReg + " , " + tempRightReg );
+        }
+        if (onlyRightIsByte && !rightIsID) { // convert the right side to i32
+            string convertedRightReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(convertedRightReg + " = zext i8 " + rightValue + " to i32");
+
+             // this is added because maybe the value is stored in a reg that was alloca, and then its i32* and not i32.
+            string templeftReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(templeftReg + " = load i32, i32* " + leftValue );
+            
+            bufferPtr->emit(newVar + " = " + operation + " i32 " + templeftReg + " , " + convertedRightReg);
+        }
+        if (onlyLeftIsByte && !leftIsID) { // convert the left side to i32
+            string convertedLeftReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(convertedLeftReg + " = zext i8 " + leftValue + " to i32");
+
+            // this is added because maybe the value is stored in a reg that was alloca, and then its i32* and not i32.
+            string tempRightReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(tempRightReg + " = load i32, i32* " + rightValue ); 
+            
+            bufferPtr->emit(newVar + " = " + operation + " i32 " + convertedLeftReg + " , " + tempRightReg);
+        }
+        if (bothSidesAreINT || (onlyLeftIsByte && leftIsID) || (onlyRightIsByte && rightIsID ) || (bothSidesAreByte && leftIsID && rightIsID)) {
+             // this is added because maybe the value is stored in a reg that was alloca, and then its i32* and not i32.
+            string tempRightReg = GetRegName(bufferPtr->GetFreshVar());
+            string templeftReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(tempRightReg + " = load i32, i32* " + rightValue ); 
+            bufferPtr->emit(templeftReg + " = load i32, i32* " + leftValue );
+            
+            bufferPtr->emit(newVar + " = " + operation + " i32 " + templeftReg + " , " + tempRightReg );
+        }
+        return newVar; // in the parser - will set the mother statment to this register. 
+    }
 };
 
 

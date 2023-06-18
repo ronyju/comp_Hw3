@@ -18,6 +18,7 @@ typedef enum {NO_ERROR, ERROR_LEX, ERROR_SYN,
 #define NOT_FOUND nullptr
 #define NA -99999
 #define UNDEF -88888
+#define REG_UNDEF -1
 /* ------------------------------- Type ------------------------------- */
 
 class TypeStruct {
@@ -29,7 +30,7 @@ protected:
     vector<string> arguments_types;
     bool isNoArguments;
     string register_name;
-    int register_num;
+    int register_num = REG_UNDEF;
 
 public:
     // constructor for non-function :
@@ -48,6 +49,7 @@ public:
     string ToString();
     bool IsNoArguments() { return isNoArguments; }
     void SetReg(int reg_number) { register_num = reg_number; register_name = "%t" + std::to_string(reg_number);}
+    int GetReg (){ return register_num;}
 };
 
 /* --------------------------- Symbol Table --------------------------- */
@@ -67,7 +69,8 @@ public:
     void SetOffset(int new_offset) { offset = new_offset; }
     bool IsFunc () { return type.IsFunc(); }
     string ToString();
-    void SetReg(int reg_number) { type.SetReg(reg_number);}
+    void SetReg(int reg_number) { type.SetReg(reg_number); }
+    int GetReg () { return type.GetReg(); }
 };
 class SymbolTable {
     //OREN - we are not using pointers cuz we are lazy, just like we did in OS last semester...

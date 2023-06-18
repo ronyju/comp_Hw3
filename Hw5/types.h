@@ -16,6 +16,7 @@ using namespace std;
 class Node {
 protected:
     int line_number;
+    string curRegister;
     string value;
     string type;
     string label;
@@ -51,6 +52,8 @@ public:
     void SetHasRetToTrue() {hasRet = true;}
     bool GetHasRet() {return hasRet;}
     void SetLabel(string newLabel){label = newLabel;}
+    void SetCurrentRegister(string newCurrentReg) {curRegister = newCurrentReg;}
+    string GetCurrentRegister() {return curRegister;}
     string GetType() { return type; }
     string GetValue() { return value; }
     int GetLineNumber() { return line_number; }
