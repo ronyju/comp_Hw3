@@ -28,6 +28,8 @@ protected:
     string return_type;
     vector<string> arguments_types;
     bool isNoArguments;
+    string register_name;
+    int register_num;
 
 public:
     // constructor for non-function :
@@ -45,6 +47,7 @@ public:
     vector<string> GetCopyOfArgumentsTypes() { return arguments_types; }
     string ToString();
     bool IsNoArguments() { return isNoArguments; }
+    void SetReg(int reg_number) { register_num = reg_number; register_name = "%t" + std::to_string(reg_number);}
 };
 
 /* --------------------------- Symbol Table --------------------------- */
@@ -64,6 +67,7 @@ public:
     void SetOffset(int new_offset) { offset = new_offset; }
     bool IsFunc () { return type.IsFunc(); }
     string ToString();
+    void SetReg(int reg_number) { type.SetReg(reg_number);}
 };
 class SymbolTable {
     //OREN - we are not using pointers cuz we are lazy, just like we did in OS last semester...
@@ -76,7 +80,7 @@ public:
     string ToString();
     SymbolTableElement* SearchInTableByName (string name, bool* found); // must check found to see if the return is valid!!
     vector <SymbolTableElement*> GetAllFuncOfName (string name); //might return empty vac
-    //TODO: OREN we will have to think of how to implement the search when its an override function, I leave it open for now
+
 
 };
 /* -------------------------------- scope --------------------------------- */
@@ -120,12 +124,12 @@ public:
     void PopScope();
     ErrorType checkForErrorBeforeAddSymbolToCurrentScope(string name, TypeStruct type, int offset = UNDEF) { SymbolTableElement element (name, type, offset); return checkForErrorBeforeAddSymbolToCurrentScope (element); }
     ErrorType checkForErrorBeforeAddSymbolToCurrentScope(SymbolTableElement element); //for both func or variable
-    ErrorType checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vectorm ,string expectedReturnType = "dont care" );// Oren, if you don't care to check the return type dont add it in the arguments
-    ErrorType CheckCallArgumentToFunc(SymbolTableElement* func, vector <pair<string,bool>> expectedArgumentsNames , vector<string> expectedArgumentsTypes,  string expectedReturnType);
+    ErrorType checkAfterCallIfFuncExist(string expectedFuncName, vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector ,string expectedReturnType = "dont care" );// Oren, if you don't care to check the return type dont add it in the arguments
+    ErrorType CheckCallArgumentToFunc(SymbolTableElement* func, vector <pair<string,bool>> expectedArgumentsNames , vector<string> expectedArgumentsTypes, string* returnTypeOfFuncThatMatch ,string expectedReturnType);
     ErrorType checkIfAllArgumentsExist(vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector , string* var_error_name );  
     ErrorType checkIfVarExist(string expectedVarName, string expectedVarType = "dont care"); //Oren, if you don't care to check the type don't add it in the arguments
     ErrorType checkIfAssignedTypesAreCompatible(string expectedVarName, string expectedVarType);
-    string GetFunctionReturnType(string funcName);
+    string GetFunctionReturnType(string funcName,vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector);
     void printStack(); //for debug
     bool CurScopeRetTypeEquals (string expected_type);
     bool IsCurrentScopeWhile();
