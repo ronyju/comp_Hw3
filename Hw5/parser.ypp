@@ -10,6 +10,7 @@
     extern int yylineno;
     extern char *yytext;
     bool HasMain;
+    string funcRetType;
     ScopeStack scopStack;
     void popScope();
     void yyerror(const char*);
@@ -115,8 +116,8 @@ FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN { if ($3->GetValue() == 
 OverRide    : /*the_empty_word*/ {$$ = new Node("NONE","NONE",yylineno);}                                                  
 		    | OVERRIDE           {$$ = $1;}                                                      
 
-RetType     : Type               {$$ = $1;}                                           
-	        | VOID               {$$ = $1;}                                                
+RetType     : Type               {$$ = $1; funcRetType = $1->GetType();}                                           
+	        | VOID               {$$ = $1; funcRetType = "VOID";}                                                
 
 Formals     : /*the_empty_word*/                                                  
 		    | FormalsList                                                          
@@ -194,13 +195,13 @@ Exp         : NumericExp    {$$ = $1; last_exp = $1;}
 NumericExp  : LPAREN Exp RPAREN            {$$ = $2;}                                     
              | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);
                                             string regCurType;
-                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType() , $3->GetCurrentRegister(), regCurType);
+                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType() , $3->GetCurrentRegister(), regCurType, funcRetType);
                                             $$->SetCurrentRegister(NumbericExpNewRegName);
                                             $$->SetCurrentRegType(regCurType);
                                             }                                 
              | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);
                                             string regCurType;
-                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType(), $3->GetCurrentRegister(), regCurType);
+                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType(), $3->GetCurrentRegister(), regCurType, funcRetType);
                                             $$->SetCurrentRegister(NumbericExpNewRegName);
                                             $$->SetCurrentRegType(regCurType);
                                             }                                    
