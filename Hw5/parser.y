@@ -158,9 +158,10 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
                         | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE", "NO_VALUE" ,yylineno); 
                                                                                 string newIdReg = midCode.IdDeclareEmitToBuff($1->GetType(), $2->GetValue()); //TODO: make sure to update the ID reg in the scope
                                                                                 $2->SetCurrentRegister(newIdReg);
+                                                                                $2->SetCurrentRegType("i32");
                                                                             }                       
                         | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() , $4->GetValue() ,yylineno); //TODO: make sure to update the ID reg in the scope
-                                                                                string newIdReg = midCode.IdAssignEmitToBuff($1->GetType(),$2->GetValue(),$4->GetValue() ,$4->GetType(), $4->GetCurrentRegister());
+                                                                                string newIdReg = midCode.IdAssignEmitToBuff($1->GetType(),$2->GetValue(),$4->GetValue() ,$4->GetType(), $4->GetCurrentRegister(), $4->GetCurrentRegType());
                                                                                 $2->SetCurrentRegister(newIdReg);
                                                                             }                                             
                         | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3 , yylineno);}  //TODO: make sure to update the ID reg in the scope                                        
@@ -191,16 +192,26 @@ Exp         : NumericExp    {$$ = $1; last_exp = $1;}
             ;
 
 NumericExp  : LPAREN Exp RPAREN            {$$ = $2;}                                     
-             | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);}                                 
-             | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);
-                                            string NumbericExpNewRegName = midCode.AddetiveEmit($2->GetValue(), $1->GetValue(), $1->GetType() , $3->GetValue(), $3->GetType());
+             | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);
+                                            string regCurType;
+                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType() , $3->GetCurrentRegister(), regCurType);
                                             $$->SetCurrentRegister(NumbericExpNewRegName);
+                                            $$->SetCurrentRegType(regCurType);
+                                            }                                 
+             | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);
+                                            string regCurType;
+                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType(), $3->GetCurrentRegister(), regCurType);
+                                            $$->SetCurrentRegister(NumbericExpNewRegName);
+                                            $$->SetCurrentRegType(regCurType);
                                             }                                    
 
 SingleExp   : ID                      	{$$ = $1;}
             | Call                      {$$ = $1;}                                      
             | NUM                       {$$ = $1;}                                          
-            | NUM B                     {checkByteSize($1->GetValue()); $$ = new Node($2->GetType(), $1->GetValue(), yylineno);}                                              
+            | NUM B                     {checkByteSize($1->GetValue()); $$ = new Node($2->GetType(), $1->GetValue(), yylineno);
+                                            string byteReg = midCode.creteRegForByte($1->GetValue());
+                                            $$->SetCurrentRegister(byteReg);
+                                        }                                              
             | STRING                    {$$ = $1;}                                        
             | TRUE                      {$$ = $1;}                                      
             | FALSE                     {$$ = $1;}                                      
@@ -209,9 +220,10 @@ complexExp  : NOT Exp                   {$$ = handleBoolean($2, NULL, yylineno);
             | Exp AND Exp               {$$ = handleBoolean($1, $3, yylineno);}                                         
             | Exp OR Exp                {$$ = handleBoolean($1, $3, yylineno);}                             
             | Exp RELATIONAL Exp        {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);
-                                            string resultRegName;
-                                            int holeLine = midCode.EmitRelational($1->GetValue(), $1->GetType(),$3->GetValue(), $3->GetType(), $2->GetValue(), resultRegName);
+                                            string resultRegName, resultRegType;
+                                            int holeLine = midCode.EmitRelational($1->GetValue(), $1->GetType(),$3->GetValue(), $3->GetType(), $2->GetValue(), resultRegName , resultRegType);
                                             $$->SetCurrentRegister(resultRegName);
+                                            $$->SetCurrentRegType(resultRegType);
                                          $$->MergeToTrueList(makelist(make_pair(holeLine, FIRST)));
                                          $$->MergeToFalseList(makelist(make_pair(holeLine, SECOND)));}                                        
             | Exp EQUALITY Exp          {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);

@@ -175,19 +175,31 @@ public:
         return GetRegName(idRegNum);
     }
 
-    string IdAssignEmitToBuff (string typeName, string varName,string value,string valueType, string valueReg) {
-        std::cout << "rony. valueReg = "<< valueReg <<" and valueType = "<< valueType << " and value = " << value<<endl; //TODO: remove befor submit 
+    string IdAssignEmitToBuff (string typeName, string varName, string value, string valueType, string valueReg, string valueRegType) {
+        std::cout << "rony IdAssignEmitToBuff . typeName = "<< typeName << ", valueType = "<< valueType<<std::endl; //TODO: remove
+        std::cout << "rony IdAssignEmitToBuff . value = "<< value <<std::endl; //TODO: remove
         int idRegNum = bufferPtr->GetFreshVar();
         int valueRegNum = bufferPtr->GetFreshVar();
         string newValue = value;
-        bool isID;
-        if (value == "NONE") { newValue = valueReg; value = valueReg; isID = true;} // for example int x = 3 + 5 , EXP = 3+5. EXP->GetValue() = "NONE" and its reg was updated.
+        bool isID = false;
+        if (value == "NONE") { // for example int x = 3 + 5 , EXP = 3+5. EXP->GetValue() = "NONE" and its reg was updated.
+            newValue = valueReg; 
+            value = valueReg; 
+            if (valueRegType == "i32") {isID = true;}
+        } 
         string llvmType = ConvertTypeToLLVM(typeName);
 
         bufferPtr->emit(GetRegName(idRegNum) + " = alloca i32");
 
         if (valueType == "ID") {
-//TODO: fill up with load in the middle
+            string ValueIdName = value;
+            string valueType = GetTypeFromId(ValueIdName);
+            if (valueReg == "UNDEF") { valueReg = GetRegFromId(ValueIdName); }
+            int tempReg = bufferPtr->GetFreshVar();
+            string tempRegName = GetRegName(tempReg);
+            bufferPtr->emit(tempRegName + " = load i32, i32* " + valueReg );
+            bufferPtr->emit("store i32 " + tempRegName + ", i32* " + GetRegName(idRegNum));
+
         } else { // if isID it was already converted to i32!
             if (valueType == "BOOL" && !isID) {
                 int boolVar = bufferPtr->GetFreshVar();
@@ -240,7 +252,7 @@ public:
         return "";
     }
 
-    int EmitRelational (string leftValue, string leftType, string rightValue, string rightType, string oper, string& resultRegName) {
+    int EmitRelational (string leftValue, string leftType, string rightValue, string rightType, string oper, string& resultRegName, string& resultRegType) {
         // TODO: if one of them or both is ID change leftValue and  rightValue to its curRegister
         string resultReg =  GetRegName(bufferPtr->GetFreshVar());
         string llvmOper = OperToLlvm(oper);
@@ -258,7 +270,15 @@ public:
 
         bufferPtr->emit(resultReg + " = icmp " + llvmOper + " i32 " + leftValue + " , " + rightValue);
         resultRegName = resultReg;
+        resultRegType = "i32";
         return BooleanBranchJumpEmit(resultReg);
+    }
+
+    string creteRegForByte (string value) {
+        // assign with add 0 with out alloca. return the temp reg to be set in the parser  
+        string byteReg = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(byteReg + " = add i8 0 , "+ value);
+        return byteReg;
     }
 
     int BooleanBranchJumpEmit(string boolReg) {
@@ -276,15 +296,38 @@ public:
         if (sign == "+") {return "add";}
         if (sign == "-") {return "sub";}
         if (sign == "*") {return "mul";}
-        if (sign == "/") {return "sub";}
+        if (sign == "/") {return "div";}
         std::cout <<"Error in GetOpFromSign op - " << sign <<" is unknown";
         return "";
     }
 
-    string AddetiveEmit (string sign , string leftValue, string leftType, string rightValue , string rightType) {
-        // TODO: if they are ID and not TYPE - must convert.
+    void EmitDivByZeroCheck() {
+        //TODO - write
+    }
+
+    string AddetiveAndMultiplicativeEmit (string sign , string leftValue, string leftType, string leftReg, string rightValue , string rightType, string rightReg, string& curRegType) {
+        std::cout << "rony. sign = "<< sign << " , leftValue = "<< leftValue << ", leftType = "<< leftType << ", leftReg = "<< leftReg <<std::endl; //TODO: remove befor submit 
+        std::cout << "rightValue = "<< rightValue << ", rightType = "<< rightType << ", rightReg =" << rightReg <<std::endl; //TODO: remove befor submit 
+        
+        string operation = GetOpFromSign(sign);
+        
+        if (operation == "div") {EmitDivByZeroCheck();}
+        
         bool leftIsID = (leftType == "ID");  
+        if (!leftIsID && leftType != "BYTE") { 
+            string leftHolder = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(leftHolder + " = alloca i32");
+            bufferPtr->emit("store i32 " + leftValue + ", i32* " + leftHolder);
+            leftValue = leftHolder;
+        }
         bool rightIsID = (rightType == "ID");  
+        if (!rightIsID && rightType != "BYTE") {
+            string rightHolder = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(rightHolder + " = alloca i32");
+            bufferPtr->emit("store i32 " + rightValue + ", i32* " + rightHolder);
+            rightValue = rightHolder;
+        }
+
         if (leftIsID) {
             string leftIdName = leftValue;
             leftType = GetTypeFromId(leftIdName);
@@ -297,23 +340,46 @@ public:
             rightValue = GetRegFromId(rightIdName);
         }
 
-        string newVar = GetRegName(bufferPtr->GetFreshVar());
-        string operation = GetOpFromSign(sign);
+        if (rightReg != "UNDEF") { rightValue = rightReg; }
+        if (leftReg != "UNDEF") { leftValue = leftReg; }
+
         bool bothSidesAreByte = (leftType == "BYTE") && (rightType == "BYTE");
         bool onlyRightIsByte = (leftType != "BYTE") && (rightType == "BYTE");
         bool onlyLeftIsByte = (leftType == "BYTE") && (rightType != "BYTE");
         bool bothSidesAreINT = (leftType != "BYTE") && (rightType != "BYTE");
-
-        if (bothSidesAreByte && !leftIsID && !rightIsID) { // result is BYTE:
-            // this is added because maybe the value is stored in a reg that was alloca, and then its i32* and not i32.
-            string tempRightReg = GetRegName(bufferPtr->GetFreshVar());
-            string templeftReg = GetRegName(bufferPtr->GetFreshVar());
-            bufferPtr->emit(tempRightReg + " = load i8, i8* " + rightValue ); 
-            bufferPtr->emit(templeftReg + " = load i8, i8* " + leftValue );
-            
-            bufferPtr->emit(newVar + " = " + operation + " i8 " + templeftReg + " , " + tempRightReg );
+        // notice that if one of them is ID, it was already comverted to INT in the past .
+        bothSidesAreByte = bothSidesAreByte && !leftIsID && !rightIsID;
+        onlyRightIsByte = onlyRightIsByte && !rightIsID;
+        onlyLeftIsByte = onlyLeftIsByte && !leftIsID;
+        bothSidesAreINT = bothSidesAreINT || (!bothSidesAreByte && !onlyRightIsByte && !onlyLeftIsByte);
+        
+        string newVar = GetRegName(bufferPtr->GetFreshVar());
+        
+        if (bothSidesAreByte) { // result is BYTE:
+        std::cout << "rony. bothSidesAreByte"<<std::endl; //TODO: remove befor submit 
+            // this is added because maybe the value is stored in a reg that was alloca, and then its i8* and not i8.
+            string tempRightReg ,templeftReg;
+            if (rightReg == "UNDEF") { // this wasnt already defined
+                tempRightReg = GetRegName(bufferPtr->GetFreshVar());      
+                bufferPtr->emit(tempRightReg + " = load i8, i8* " + rightValue ); 
+            }
+            else {
+                tempRightReg = rightReg;
+            }
+            if (leftReg == "UNDEF") { // this wasnt already defined
+                templeftReg = GetRegName(bufferPtr->GetFreshVar());
+                bufferPtr->emit(templeftReg + " = load i8, i8* " + leftValue );
+            }
+            else {
+                templeftReg = leftReg;
+            }
+            if (operation == "div") { bufferPtr->emit(newVar + " = udiv i8 " + templeftReg + " , " + tempRightReg );}
+            else {bufferPtr->emit(newVar + " = " + operation + " i8 " + templeftReg + " , " + tempRightReg );}
+            curRegType = "i8";
         }
-        if (onlyRightIsByte && !rightIsID) { // convert the right side to i32
+
+        if (onlyRightIsByte) { // convert the right side to i32
+         std::cout << "rony. onlyRightIsByte"<<std::endl; //TODO: remove befor submit 
             string convertedRightReg = GetRegName(bufferPtr->GetFreshVar());
             bufferPtr->emit(convertedRightReg + " = zext i8 " + rightValue + " to i32");
 
@@ -321,9 +387,13 @@ public:
             string templeftReg = GetRegName(bufferPtr->GetFreshVar());
             bufferPtr->emit(templeftReg + " = load i32, i32* " + leftValue );
             
-            bufferPtr->emit(newVar + " = " + operation + " i32 " + templeftReg + " , " + convertedRightReg);
+            if (operation == "div") { bufferPtr->emit(newVar + " = sdiv i32 " + templeftReg + " , " + convertedRightReg); }
+            else { bufferPtr->emit(newVar + " = " + operation + " i32 " + templeftReg + " , " + convertedRightReg); }
+            curRegType = "i32";
         }
-        if (onlyLeftIsByte && !leftIsID) { // convert the left side to i32
+
+        if (onlyLeftIsByte) { // convert the left side to i32
+        std::cout << "rony. onlyLeftIsByte"<<std::endl; //TODO: remove befor submit 
             string convertedLeftReg = GetRegName(bufferPtr->GetFreshVar());
             bufferPtr->emit(convertedLeftReg + " = zext i8 " + leftValue + " to i32");
 
@@ -331,16 +401,22 @@ public:
             string tempRightReg = GetRegName(bufferPtr->GetFreshVar());
             bufferPtr->emit(tempRightReg + " = load i32, i32* " + rightValue ); 
             
-            bufferPtr->emit(newVar + " = " + operation + " i32 " + convertedLeftReg + " , " + tempRightReg);
+            if (operation == "div") { bufferPtr->emit(newVar + " = sdiv i32 " + convertedLeftReg + " , " + tempRightReg); }
+            else { bufferPtr->emit(newVar + " = " + operation + " i32 " + convertedLeftReg + " , " + tempRightReg); }
+            curRegType = "i32";
         }
-        if (bothSidesAreINT || (onlyLeftIsByte && leftIsID) || (onlyRightIsByte && rightIsID ) || (bothSidesAreByte && leftIsID && rightIsID)) {
+        
+        if (bothSidesAreINT) {
+             std::cout << "rony. bothSidesAreINT"<<std::endl; //TODO: remove befor submit 
              // this is added because maybe the value is stored in a reg that was alloca, and then its i32* and not i32.
             string tempRightReg = GetRegName(bufferPtr->GetFreshVar());
             string templeftReg = GetRegName(bufferPtr->GetFreshVar());
             bufferPtr->emit(tempRightReg + " = load i32, i32* " + rightValue ); 
             bufferPtr->emit(templeftReg + " = load i32, i32* " + leftValue );
             
-            bufferPtr->emit(newVar + " = " + operation + " i32 " + templeftReg + " , " + tempRightReg );
+            if (operation == "div") { bufferPtr->emit(newVar + " = sdiv i32 " + templeftReg + " , " + tempRightReg); }
+            else { bufferPtr->emit(newVar + " = " + operation + " i32 " + templeftReg + " , " + tempRightReg ); }
+            curRegType = "i32";
         }
         return newVar; // in the parser - will set the mother statment to this register. 
     }

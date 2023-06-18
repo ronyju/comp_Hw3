@@ -16,7 +16,8 @@ using namespace std;
 class Node {
 protected:
     int line_number;
-    string curRegister;
+    string curRegister = "UNDEF";
+    string curRegType ="UNDEF";
     string value;
     string type;
     string label;
@@ -54,6 +55,8 @@ public:
     void SetLabel(string newLabel){label = newLabel;}
     void SetCurrentRegister(string newCurrentReg) {curRegister = newCurrentReg;}
     string GetCurrentRegister() {return curRegister;}
+    void SetCurrentRegType(string newCurrentRegType) {curRegType = newCurrentRegType;}
+    string GetCurrentRegType() {return curRegType;}
     string GetType() { return type; }
     string GetValue() { return value; }
     int GetLineNumber() { return line_number; }
