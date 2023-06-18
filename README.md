@@ -5,7 +5,7 @@ importent:
 
 what is now :
 1. I added code to prosses addetive, like int x = 5 + 4; and byte y = a + b; when a and b are known 
-2. 
+2. Added the ID option to assign 
 
 what is a problem:
 1. in the isdtuction it says we need to save the local var of a function at its start acurding to its offset.
