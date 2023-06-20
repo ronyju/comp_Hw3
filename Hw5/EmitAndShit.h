@@ -447,6 +447,55 @@ public:
         bufferPtr->bpatch(trueListOfAddressToPatch, trueLable);
         bufferPtr->bpatch(falseListOfAddressToPatch, falseLabel);
     }
+
+    void PatchAnd (Node* leftBool, Node* rightBool, Node* M, Node* motherNode) {
+            /*
+                Mother ------------------------------
+                |       **rightBool                 |
+                |   true list-> leftBool            |
+                |   false list -> mother false list |
+                |                                   |
+                |       **leftBool                  |
+                |   true list -> Mother true list   |
+                |   false list -> mother false list |
+                |------------------------------------
+            */
+
+        // if rightBool is true continue to check the left bool:
+        bufferPtr->bpatch(leftBool->GetTrueListToPatch(), M->GetLabel());
+
+        // add the true list of the left bool to the mother true list:
+        motherNode->MergeToTrueList(rightBool->GetTrueListToPatch());
+
+        // combine both false list of the bool to the mother false list 
+        motherNode->MergeToFalseList(leftBool->GetFalseListToPatch());
+        motherNode->MergeToFalseList(rightBool->GetFalseListToPatch());
+    }
+
+/*
+
+    
+void orBool(Stype &to, Stype &param1, Stype &M, Stype &param2){
+    CodeBuffer &codeBuff = CodeBuffer::instance();
+    codeBuff.bpatch(param1.false_list, M.label); //keep looking for true if false
+    to.false_list = param2.false_list;
+    to.true_list = codeBuff.merge(param1.true_list, param2.true_list);
+}
+
+void notBool(Stype& to, Stype& boolean){
+    to.false_list = boolean.true_list;
+    to.true_list = boolean.false_list;
+    if(boolean.is_const)
+    {
+        string value = boolean.value;
+        if(value == "true")
+            to.value = "false";
+        if(value == "false")
+            to.value = "true";
+    }
+}
+*/
+
 };
 
 

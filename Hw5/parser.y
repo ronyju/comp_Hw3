@@ -104,7 +104,7 @@
 
 %%
 //rules
-Program     : {midCode.SetGlobalAndPrintToBuffer();} M_GLOBAL_SCOPE Funcs                                                              {if (!HasMain) {handleErrorCode(ERROR_MAIN_MISSING, yylineno, "NONE" ,"needToAddValueForByteError");} popScope(); }  
+Program     : M_GLOBAL_SCOPE Funcs                                                              {if (!HasMain) {handleErrorCode(ERROR_MAIN_MISSING, yylineno, "NONE" ,"needToAddValueForByteError");} popScope(); }  
 
 Funcs	    : /*the_empty_word*/                                                    
 		    | FuncDecl Funcs                                                      
@@ -218,8 +218,10 @@ SingleExp   : ID                      	{$$ = $1;}
             | FALSE                     {$$ = $1;}                                      
 
 complexExp  : NOT Exp                   {$$ = handleBoolean($2, NULL, yylineno);}                                                     
-            | Exp AND Exp               {$$ = handleBoolean($1, $3, yylineno);}                                         
-            | Exp OR Exp                {$$ = handleBoolean($1, $3, yylineno);}                             
+            | Exp AND MMMMMMMMMMMMMM Exp               {$$ = handleBoolean($1, $4, yylineno);
+                                                            midCode.PatchAnd($1, $4, $3, $$);
+                                                        }                                         
+            | Exp OR  MMMMMMMMMMMMMM Exp                {$$ = handleBoolean($1, $4, yylineno);}                             
             | Exp RELATIONAL Exp        {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);
                                             string resultRegName, resultRegType;
                                             int holeLine = midCode.EmitRelational($1->GetValue(), $1->GetType(),$3->GetValue(), $3->GetType(), $2->GetValue(), resultRegName , resultRegType);
@@ -524,6 +526,7 @@ int main(){
     // for debug remove before submiting :
     // yydebug = 1;
     yyparse();
+    midCode.SetGlobalAndPrintToBuffer();
     midCode.PrintBuffer();
     return 0;
 }
