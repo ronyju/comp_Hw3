@@ -6,6 +6,8 @@
     //#include "databases.hpp"
     #include "types.h"
     #include "EmitAndShit.h"
+    #include "Register.h"
+
     extern int yylex();
     extern int yylineno;
     extern char *yytext;
@@ -19,6 +21,7 @@
     void addFuncToScope(bool isOverride,string returnType,string funcName,int yylineno);
     vector<pair<string,string>> types_names_arg_vector;
     vector<pair<string,pair<string,bool>>> types_names_isId_arg_vector;
+    vector<Register> reg_arg_vector;
     void handleErrorCode(ErrorType error, int lineno, const string& name, const string& value);
     Node* handeleMultiplacativeAndAdditiveORRelop(Node* exp1,Node* exp2 ,int yylineno, int isRelop = false);
     Node* handleBoolean (Node* exp1,Node* exp2 ,int yylineno);
@@ -38,6 +41,8 @@
     ///////////////////////////// HW5 //////////////////////////
     EmitAndShit midCode;
     vector<pair<int,BranchLabelIndex>> makelist (pair<int,BranchLabelIndex> item);
+    list<loopNextListAndLable> loopsList;
+    string lastLableSaved;
 
 //  for debug remove before submiting :
 //    #define YYERROR_VERBOSE 1 
@@ -111,7 +116,7 @@ Funcs	    : /*the_empty_word*/
 
 FuncDecl    : OverRide RetType ID LPAREN Formals RPAREN { if ($3->GetValue() == "main" && $2->GetType()=="VOID" && types_names_arg_vector.empty()) { HasMain = true; } 
                 addFuncToScope($1->GetType() == "override",$2->GetType(),$3->GetValue(),yylineno); functionReturnType = $2->GetType();} M_FUNC_SCOPE LBRACE 
-                { midCode.FuncDeclareEmitToBuff($2->GetType(),$3->GetValue(),types_names_arg_vector);  types_names_arg_vector.clear();} Statements RBRACE {popScope(); midCode.AddRetVoidIfNeeded($11->GetHasRet());  midCode.EmitEndOfFunc();} //TODO: how to add return (ret void)
+                { midCode.FuncDeclareEmitToBuff($2->GetType(),$3->GetValue(),types_names_arg_vector);  types_names_arg_vector.clear();} Statements RBRACE {popScope();  midCode.AddRetIfNeeded(/*$11->GetHasRet()*/false, $2->GetType()); midCode.EmitEndOfFunc();} 
 
 OverRide    : /*the_empty_word*/ {$$ = new Node("NONE","NONE",yylineno);}                                                  
 		    | OVERRIDE           {$$ = $1;}                                                      
@@ -141,45 +146,60 @@ Statement	: OpenIfWhileStatement MMMMMMMMMMMMMM {$$ = $1; midCode.Patch($2->GetL
 
 OpenIfWhileStatement    : IF M_IF_SCOPE LPAREN Exp RPAREN M_CHECK_BOOL Statement                                            				{popScope();}                                        
                         | IF M_IF_SCOPE LPAREN Exp RPAREN M_CHECK_BOOL ClosedIfWhileStatment M_POP_IF_SCOPE ELSE M_ELSE_SCOPE OpenIfWhileStatement      	{popScope();}
-                        | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL MMMMMMMMMMMMMM OpenIfWhileStatement NNNNNNNNNNNNNN              							{popScope();}                       
+                        | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  OpenIfWhileStatement NNNNNNNNNNNNNN   {popScope();}                       
 
 
 ClosedIfWhileStatment   : NotIfWhileStatement {$$ = $1;}
                         | ClosedYesIfWhileStatment MMMMMMMMMMMMMM {$$ = $1; midCode.Patch($2->GetLabel(),$1->GetNextListToPatch());}
 
 ClosedYesIfWhileStatment : IF M_IF_SCOPE LPAREN Exp RPAREN M_CHECK_BOOL ClosedIfWhileStatment M_POP_IF_SCOPE ELSE M_ELSE_SCOPE ClosedIfWhileStatment     	{popScope();}
-                         | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL MMMMMMMMMMMMMM ClosedIfWhileStatment  NNNNNNNNNNNNNN {popScope();                                                                                                                                    
-                                                                                                                                    $10->MergeToNextList($11->GetNextListToPatch()); // add the N address to the next list of the statment 
-                                                                                                                                    midCode.Patch($5->GetLabel(),$2->GetNextListToPatch()); //patching the start of the block to the first entry - WHYYYY??!??!?!?! FFS  cuz LLVM says so 
-                                                                                                                                    midCode.Patch($5->GetLabel(),$10->GetNextListToPatch()); //patching the end of the while loop to the boolean check 
-                                                                                                                                    midCode.Patch($9->GetLabel(),$6->GetTrueListToPatch()); // patching the true list of the boolean check to the body of the while loop
-                                                                                                                                    $$->MergeToNextList($6->GetFalseListToPatch());} // ClosedIfWhileStatment.next is now also respondible to patch the false list of the boolean check                       
+                         | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  ClosedIfWhileStatment  NNNNNNNNNNNNNN {popScope();
+                                                                                                                                                                                    $$->MergeToNextList(loopsList.back().GetNextList()); // add the next list of the brake and contiue that was gatheres in this specific loop                                                                                                                             
+                                                                                                                                                                                    $11->MergeToNextList($12->GetNextListToPatch()); // add the N address to the next list of the statment 
+                                                                                                                                                                                    midCode.Patch($5->GetLabel(),$2->GetNextListToPatch()); //patching the start of the block to the first entry - WHYYYY??!??!?!?! FFS  cuz LLVM says so 
+                                                                                                                                                                                    midCode.Patch($5->GetLabel(),$11->GetNextListToPatch()); //patching the end of the while loop to the boolean check 
+                                                                                                                                                                                    midCode.Patch($10->GetLabel(),$6->GetTrueListToPatch()); // patching the true list of the boolean check to the body of the while loop
+                                                                                                                                                                                    $$->MergeToNextList($6->GetFalseListToPatch());  // ClosedIfWhileStatment.next is now also respondible to patch the false list of the boolean check                       
+                                                                                                                                                                                    loopsList.pop_front();}
 
 NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {popScope();}                                          
-                        | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE", "NO_VALUE" ,yylineno); 
-                                                                                string newIdReg = midCode.IdDeclareEmitToBuff($1->GetType(), $2->GetValue()); //TODO: make sure to update the ID reg in the scope
-                                                                                $2->SetCurrentRegister(newIdReg);
-                                                                                $2->SetCurrentRegType("i32");
+                        | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE", "NO_VALUE" ,yylineno);
+                                                                                string new_reg = midCode.IdDeclareEmitToBuff($1->GetType(), $2->GetValue());
+                                                                                $2->SetReg(new_reg);
                                                                             }                       
-                        | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() , $4->GetValue() ,yylineno); //TODO: make sure to update the ID reg in the scope
-                                                                                string newIdReg = midCode.IdAssignEmitToBuff($1->GetType(),$2->GetValue(),$4->GetValue() ,$4->GetType(), $4->GetCurrentRegister(), $4->GetCurrentRegType());
-                                                                                $2->SetCurrentRegister(newIdReg);
+                        | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() , $4->GetValue() ,yylineno);
+                                                                                string new_reg = midCode.IdAssignEmitToBuff($1->GetType(),$2->GetValue(),$4->GetRegName(), $4->GetType());
+                                                                                $2->SetReg(new_reg);
                                                                             }                                             
-                        | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3 , yylineno);}  //TODO: make sure to update the ID reg in the scope                                        
+                        | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3 , yylineno); }                                         
                         | Call SC                                           {$$ = $1;}                  
                         | RETURN SC                                         {$$ = $1; checkRet("VOID" ,"", yylineno); 
                                                                                 midCode.AddRetVoidIfNeeded(true); $$->SetHasRetToTrue();} //  emiting "void ret" and update it was done                                                           
                         | RETURN Exp SC                                     {$$ = $1; checkRet($2->GetType(), $2->GetValue() , yylineno);
-                                                                                $$->SetHasRetToTrue(); } //TODO: emit ret this
-                        | BREAK SC                                          {IsCurrentScopeWhile($1->GetType());}	                                                          
-                        | CONTINUE SC                                       {IsCurrentScopeWhile($1->GetType());}	                                                   
+                                                                                $$->SetHasRetToTrue(); 
+                                                                                midCode.EmitReturn($2->GetRegName(), $2->GetType());} 
+                        | BREAK SC                                          {IsCurrentScopeWhile($1->GetType());
+                                                                                int holeLine = midCode.EmitBreak();
+                                                                                loopsList.back().MergeToNextList(makelist(make_pair(holeLine,FIRST)));}                                                          
+                        | CONTINUE SC                                       {IsCurrentScopeWhile($1->GetType());
+                                                                                midCode.EmitConinue(loopsList.back().GetLable());}	                                                   
 
 
-Call 	    : ID LPAREN ExpList RPAREN                                      {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);}   //TODO: make sure to update the ID reg in the scope                                   
-            | ID LPAREN RPAREN                                              {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);}    //TODO: make sure to update the ID reg in the scope               
+Call 	    : ID LPAREN ExpList RPAREN                                      {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);
+                                                                                midCode.EmitCallFuncWithArgs($1, reg_arg_vector);
+                                                                                reg_arg_vector.clear();
+                                                                            }                                     
+            | ID LPAREN RPAREN                                              {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);
+                                                                                string newReg = midCode.EmitCallFuncNoArgs($1);
+                                                                                $$->SetReg(newReg);
+                                                                            }                                        
 
-ExpList	    : Exp	                                                        {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));}                                     
-		    | Exp COMMA ExpList                                             {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));}                                          
+ExpList	    : Exp	                                                        {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));
+                                                                                reg_arg_vector.push_back($1->GetReg());
+                                                                            }                                     
+		    | Exp COMMA ExpList                                             {types_names_isId_arg_vector.push_back(make_pair($1->GetType(), make_pair($1->GetValue(), $1->GetType()=="ID")));
+                                                                                reg_arg_vector.push_back($1->GetReg());
+                                                                            }                                          
 
 Type	    : INT      {$$ = $1;}                                                     
 		    | BYTE     {$$ = $1;}                                                    
@@ -194,43 +214,46 @@ Exp         : NumericExp    {$$ = $1; last_exp = $1;}
 
 NumericExp  : LPAREN Exp RPAREN            {$$ = $2;}                                     
              | Exp MULTIPLICATIVE Exp      {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);
-                                            string regCurType;
-                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType() , $3->GetCurrentRegister(), regCurType, funcRetType);
-                                            $$->SetCurrentRegister(NumbericExpNewRegName);
-                                            $$->SetCurrentRegType(regCurType);
+                                                $$->SetReg(midCode.AddetiveAndMultiplicativeEmit ($2->GetValue() , $1, $3, funcRetType));
                                             }                                 
              | Exp ADDITIVE Exp            {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3, yylineno);
-                                            string regCurType;
-                                            string NumbericExpNewRegName = midCode.AddetiveAndMultiplicativeEmit($2->GetValue(), $1->GetValue(), $1->GetType(),$1->GetCurrentRegister(), $3->GetValue(), $3->GetType(), $3->GetCurrentRegister(), regCurType, funcRetType);
-                                            $$->SetCurrentRegister(NumbericExpNewRegName);
-                                            $$->SetCurrentRegType(regCurType);
+                                                $$->SetReg(midCode.AddetiveAndMultiplicativeEmit ($2->GetValue() , $1, $3, funcRetType));
                                             }                                    
 
-SingleExp   : ID                      	{$$ = $1;}
+SingleExp   : ID                      	{ $1->SetReg(midCode.GetRegFromIdName($1->GetValue())); $$ = $1;} 
             | Call                      {$$ = $1;}                                      
             | NUM                       {$$ = $1;}                                          
-            | NUM B                     {checkByteSize($1->GetValue()); $$ = new Node($2->GetType(), $1->GetValue(), yylineno);
-                                            string byteReg = midCode.creteRegForByte($1->GetValue());
-                                            $$->SetCurrentRegister(byteReg);
-                                        }                                              
-            | STRING                    {$$ = $1;}                                        
-            | TRUE                      {$$ = $1;}                                      
-            | FALSE                     {$$ = $1;}                                      
+            | NUM B                     {checkByteSize($1->GetValue()); $$ = $1; $$->SetType($2->GetType());}// $$ = new Node($2->GetType(), $1->GetValue(), yylineno); }                                              
+            | STRING                    {$$ = $1;
+                                            midCode.EmitStringToGlobalBuffer($1, $$);
+                                        }    //String is an array                                    
+            | TRUE                      {$$ = $1; 
+                                            int holeLine = midCode.EmitHardCodedBool();
+                                            $$->MergeToTrueList(makelist(make_pair(holeLine,FIRST)));
+                                        }                                      
+            | FALSE                     {$$ = $1; 
+                                            int holeLine = midCode.EmitHardCodedBool();
+                                            $$->MergeToFalseList(makelist(make_pair(holeLine,FIRST)));
+                                        }                                      
 
-complexExp  : NOT Exp                   {$$ = handleBoolean($2, NULL, yylineno);}                                                     
+complexExp  : NOT Exp                   {$$ = handleBoolean($2, NULL, yylineno);
+                                            $$->SetTrueList($2->GetFalseListToPatch());
+                                            $$->SetFalseList($2->GetTrueListToPatch());
+                                        }                                                     
             | Exp AND MMMMMMMMMMMMMM Exp               {$$ = handleBoolean($1, $4, yylineno);
-                                                            midCode.PatchAnd($1, $4, $3, $$);
-                                                        }                                         
-            | Exp OR  MMMMMMMMMMMMMM Exp                {$$ = handleBoolean($1, $4, yylineno);}                             
+                                                            midCode.UpdateListsAndPAtchAnd($1, $4, $3->GetLabel(), $$);
+                                                        }                                                        
+            | Exp OR MMMMMMMMMMMMMM Exp                {$$ = handleBoolean($1, $4, yylineno);
+                                                            midCode.UpdateListsAndPAtchOr($1, $4, $3->GetLabel(), $$);
+                                                        }                             
             | Exp RELATIONAL Exp        {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);
-                                            string resultRegName, resultRegType;
-                                            int holeLine = midCode.EmitRelational($1->GetValue(), $1->GetType(),$3->GetValue(), $3->GetType(), $2->GetValue(), resultRegName , resultRegType);
-                                            $$->SetCurrentRegister(resultRegName);
-                                            $$->SetCurrentRegType(resultRegType);
-                                         $$->MergeToTrueList(makelist(make_pair(holeLine, FIRST)));
-                                         $$->MergeToFalseList(makelist(make_pair(holeLine, SECOND)));}                                        
+                                            int holeLine = midCode.EmitRelational($1->GetRegName(), $1->GetType(),$3->GetRegName(), $3->GetType(), $2->GetValue());
+                                            $$->MergeToTrueList(makelist(make_pair(holeLine, FIRST)));
+                                            $$->MergeToFalseList(makelist(make_pair(holeLine, SECOND)));}                                        
             | Exp EQUALITY Exp          {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);
-                                            //TODO: same as RELATIONAL 
+                                            int holeLine = midCode.EmitRelational($1->GetRegName(), $1->GetType(),$3->GetRegName(), $3->GetType(), $2->GetValue());
+                                            $$->MergeToTrueList(makelist(make_pair(holeLine, FIRST)));
+                                            $$->MergeToFalseList(makelist(make_pair(holeLine, SECOND)));
                                         }                                         
             | LPAREN Type RPAREN Exp    { checkIfConversionLegit($2->GetType(), $4->GetType(), $4->GetValue(), yylineno); $$ = new Node ($2->GetType(), $4->GetValue(), yylineno); }                                   
 
@@ -245,9 +268,17 @@ M_ELSE_SCOPE:         {scopStack.PushNewScope("ELSE","");}
 M_CHECK_BOOL:         {checkIfExpIsBool();}
 M_POP_IF_SCOPE:       {popScope();}
 
+M_WHILE_STACK:        {loopNextListAndLable LoopWhile(lastLableSaved); 
+                       loopsList.push_back(LoopWhile);} //this will push a new loop with the lable of the 
+
 //N M markers for BP
-MMMMMMMMMMMMMM :                   {$$ = new Node("NONE","NONE",yylineno); $$->SetLabel(midCode.CreateNewLabel());}
-NNNNNNNNNNNNNN :                   {$$ = new Node("NONE","NONE",yylineno); $$->MergeToNextList(midCode.CreateNewPlaceToPatch());}
+MMMMMMMMMMMMMM :                   {$$ = new Node("NONE","NONE",yylineno); 
+                                    string newLable = midCode.CreateNewLabel(); 
+                                    $$->SetLabel(newLable); 
+                                    lastLableSaved = newLable;}
+
+NNNNNNNNNNNNNN :                   {$$ = new Node("NONE","NONE",yylineno); 
+                                    $$->MergeToNextList(midCode.CreateNewPlaceToPatch());}
 %%
 
 
@@ -341,9 +372,11 @@ void addFuncToScope(bool isOverride,string returnType,string funcName, int yylin
     if (!areAllArgsNamesUnique(arguments_names,funcName,&dupName)){
         handleErrorCode(ERROR_DEF, yylineno, dupName,"needToAddValueForByteError");
     }
-
+    
     TypeStruct funcType(returnType,arguments_types,isOverride);
     SymbolTableElement funcToAdd(funcName,funcType);
+  
+
     ErrorType error = scopStack.checkForErrorBeforeAddSymbolToCurrentScope(funcToAdd);
     if(error == NO_ERROR){
 		scopStack.AddSymbolToCurrentScope(funcToAdd);
@@ -351,6 +384,9 @@ void addFuncToScope(bool isOverride,string returnType,string funcName, int yylin
     else{
         handleErrorCode(error, yylineno, funcName,"needToAddValueForByteError");
     }
+   
+   
+
 
 }
 
@@ -397,6 +433,10 @@ void addElementToScope(string type, string name, string valueType, string valueN
     SymbolTableElement elementToAdd(name, elementType);
 	ErrorType error = scopStack.checkForErrorBeforeAddSymbolToCurrentScope(elementToAdd);
     ErrorType typeError = NO_ERROR;
+    //cout<<"type: "<<type<<endl;
+    //cout<<"name: "<<name<<endl;
+    //cout<<"valueType: "<<valueType<<endl;
+    //cout<<"valueName: "<<valueName<<endl;
 
     if (valueType == "ID") { typeError = scopStack.checkIfVarExist(valueName,type); } 
     if (valueType != "NO_VALUE" && valueType!= "ID") { typeError = scopStack.checkIfAssignedTypesAreCompatible(type, valueType); }
@@ -405,10 +445,10 @@ void addElementToScope(string type, string name, string valueType, string valueN
     } else {
         error == NO_ERROR ? handleErrorCode(typeError, yylineno, name,"needToAddValueForByteError"):handleErrorCode(error, yylineno, name,"needToAddValueForByteError") ;   
     }
+     //cout<<name<<" was added"<<endl;
 }
 
 Node* handleBoolean (Node* exp1,Node* exp2 ,int yylineno) {
-    std::cout <<"rony exp1Type = exp1->GetType(); = " << exp1->GetType() <<" exp2->GetType(); = "<< exp2->GetType() << std::endl;
     ErrorType error;
     string exp1Type = exp1->GetType();
     string exp2Type;
@@ -520,6 +560,8 @@ void IsCurrentScopeWhile(string type){
 
 
 void popScope(){
+    //cout<<yylineno<<endl;
+   // scopStack.PrintCurrentScope();
     scopStack.PopScope();
 }
 
@@ -528,6 +570,7 @@ int main(){
     // yydebug = 1;
     yyparse();
     midCode.SetGlobalAndPrintToBuffer();
+   // std::cout<<"***********************************************************************"<<std::endl;//TODO: remove
     midCode.PrintBuffer();
     return 0;
 }

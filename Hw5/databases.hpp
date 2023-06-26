@@ -3,6 +3,8 @@
 #include <list>
 #include <iostream>
 #include "types.h"
+#include "Register.h"
+
 using namespace std;
 
 typedef enum {WHILE_SCOPE, IF_SCOPE, ELSE_SCOPE, FUNC_SCOPE, REGULAR_SCOPE, GLOBAL_SCOPE} ScopeType;
@@ -18,7 +20,6 @@ typedef enum {NO_ERROR, ERROR_LEX, ERROR_SYN,
 #define NOT_FOUND nullptr
 #define NA -99999
 #define UNDEF -88888
-#define REG_UNDEF -1
 /* ------------------------------- Type ------------------------------- */
 
 class TypeStruct {
@@ -28,17 +29,18 @@ protected:
     bool isOverride; // true when the function has override in its declaration
     string return_type;
     vector<string> arguments_types;
+    vector<string> arguments_regs;
     bool isNoArguments;
-    string register_name;
-    int register_num = REG_UNDEF;
+    Register reg;
+
 
 public:
     // constructor for non-function :
     TypeStruct(string type) : type(type), return_type("NULL") , isOverride(false){}
 
     // constructor for a function :
-    TypeStruct(string return_type, vector<string> arguments_types, bool isOverride = false) :
-            type("NULL"), return_type(return_type), arguments_types(arguments_types), isOverride(isOverride){ isNoArguments = arguments_types.empty();} 
+    TypeStruct(string return_type, vector<string> arguments_types, bool isOverride = false,vector<string> arguments_regs =vector<string>() ) :
+            type("NULL"), return_type(return_type), arguments_types(arguments_types), isOverride(isOverride),arguments_regs(arguments_regs){ isNoArguments = arguments_types.empty();}
     virtual ~TypeStruct() {};
     bool IsFunc() { return (return_type != "NULL"); }
     bool IsOverride() { return isOverride; }
@@ -48,8 +50,10 @@ public:
     vector<string> GetCopyOfArgumentsTypes() { return arguments_types; }
     string ToString();
     bool IsNoArguments() { return isNoArguments; }
-    void SetReg(int reg_number) { register_num = reg_number; register_name = "%t" + std::to_string(reg_number);}
-    int GetReg (){ return register_num;}
+    void SetReg(int regNumber) { reg.SetRegister(regNumber);}
+    void SetReg(string regValue) { reg.SetRegister(regValue);}
+    void SetArgumentsRegs (vector <string> new_arg_reg_vec) { arguments_regs = new_arg_reg_vec; }
+    string GetReg();
 };
 
 /* --------------------------- Symbol Table --------------------------- */
@@ -69,8 +73,10 @@ public:
     void SetOffset(int new_offset) { offset = new_offset; }
     bool IsFunc () { return type.IsFunc(); }
     string ToString();
-    void SetReg(int reg_number) { type.SetReg(reg_number); }
-    int GetReg () { return type.GetReg(); }
+    void SetReg(int reg_number) { type.SetReg(reg_number);}
+    void SetReg(string regValue) { type.SetReg(regValue);}
+
+    string GetReg(){return type.GetReg();}
 };
 class SymbolTable {
     //OREN - we are not using pointers cuz we are lazy, just like we did in OS last semester...

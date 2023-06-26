@@ -8,8 +8,8 @@ void output::endScope(){
     cout << "---end scope---" << endl;
 }
 
-void output::printID(const string& id, int offset, const string& type) {
-    cout << id << " " << type <<  " " << offset <<  endl;
+void output::printID(const string& id, int offset, const string& type, string reg) {
+    cout << id << " " << type <<  " " << offset <<" " << reg <<   endl;
 }
 
 string typeListToString(const std::vector<string>& argTypes) {

@@ -20,6 +20,11 @@ string TypeStruct::ToString() {
     }
     return type_to_string;
 }
+
+string TypeStruct::GetReg() {
+    return reg.GetRegister();
+}
+
 /* -------------------------- Symbol Table -------------------------- */
 
 string SymbolTableElement::ToString() {
@@ -106,7 +111,7 @@ void Scope::PrintScope() {
             cout<<element.GetName()<<" "<< output::makeFunctionType(element.GetType().GetReturnType(),element.GetType().GetArgumentsTypes())<<" 0"<<endl;
         }
         else{
-            output::printID(element.GetName(),element.GetOffset() ,element.GetType().GetTypeName());
+            output::printID(element.GetName(),element.GetOffset() ,element.GetType().GetTypeName(),element.GetReg());
         }
     }
 }
@@ -155,7 +160,7 @@ void ScopeStack::printStack() {
     int index = 1;
     for (it = scopes_stack.begin(); it != scopes_stack.end(); it++) {
         cout <<"scope number "<< index << " :"<<endl;
-        cout << it->ToString() << endl;
+        cout << it->ToString() << endl; // TODO: WTF
         cout << endl;
         index++;
     }

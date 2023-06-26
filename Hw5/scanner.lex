@@ -77,8 +77,8 @@ override            {yylval=new  Node(yytext, "NONE" ,yylineno); return OVERRIDE
 and                 {yylval=new  Node("BOOL", yytext, yylineno); return AND;}
 or                  {yylval=new  Node("BOOL", yytext, yylineno); return OR;}
 not                 {yylval=new  Node("BOOL", yytext, yylineno); return NOT;}
-true                {yylval=new  Node("BOOL", yytext, yylineno); return TRUE;}
-false               {yylval=new  Node("BOOL", yytext, yylineno); return FALSE;}
+true                {yylval=new  Node("BOOL", yytext, yylineno, yytext); return TRUE;}
+false               {yylval=new  Node("BOOL", yytext, yylineno, yytext); return FALSE;}
 return              {yylval=new Node(yytext, "NONE" ,yylineno); return RETURN;}
 if                  {yylval=new Node(yytext, "NONE" ,yylineno); return IF;}
 else                {yylval=new Node(yytext, "NONE" ,yylineno); return ELSE;}
@@ -106,7 +106,7 @@ continue            {yylval=new Node("CONTINUE", "NONE" ,yylineno); return CONTI
 
 
 {id}         {yylval=new Node("ID", yytext ,yylineno); return ID;}
-{num}        {yylval=new Node("INT", yytext ,yylineno); return NUM;}
+{num}        {yylval=new Node("INT", yytext ,yylineno, yytext); return NUM;}
 {string}     {yylval=new Node("STRING", yytext ,yylineno); return STRING;}
 {spaces}     ;
 {comment}    ;

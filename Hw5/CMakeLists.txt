@@ -15,4 +15,5 @@ add_executable(5
         hw3_output.cpp
         hw3_output.hpp
         types.cpp
+        Register.h
         types.h)
