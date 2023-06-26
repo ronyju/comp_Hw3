@@ -1,18 +1,23 @@
 
 # Comp Hw5:
-importent:
-1. current_register must also be a filed in the type.h Node as sometimed the parser is the only one that can set it. will explain in person.
 
-what is now :
-1. I added code to prosses addetive, like int x = 5 + 4; and byte y = a + b; when a and b are known 
-2. Added the ID option to assign 
+***test we need to debug:***
+bool foo(){
+        return true;
+}
 
-what is a problem:
-1. in the isdtuction it says we need to save the local var of a function at its start acurding to its offset.
-the only way I think we can do it is by setting 50 at the start. but this is gonna be soo much work! Gal didnt do it and I think we shouldnt too.
+void main() {
+        while (foo()){
+                print("foo is true");
+                break;
+        }
+}
 
-
-
+**whats left:**
+1. IF
+2. While that has open statment.
+3. ID ASSIGN Exp SC
+4. LPAREN Type RPAREN Exp 
 
 
 
