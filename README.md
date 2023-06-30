@@ -2,22 +2,13 @@
 # Comp Hw5:
 
 ***test we need to debug:***
-bool foo(){
-        return true and true;
-}
 
-void main(){
-        if (foo()){ print("foo is true");}
-        else {print("foo is false");}
-}
 
 **what's left:**
 1. IF that has an open statement.
 2. While that has an open statement.
 5. Override
-6. Fix the bug - (the test above)
 
-make sure you changed - EmitBoolAssign
 
 
 
