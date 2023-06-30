@@ -15,7 +15,7 @@ void main(){
 1. IF that has an open statement.
 2. While that has an open statement.
 5. Override
-6. Fix the bug - how to handle (bool a = true and true;)
+6. Fix the bug - (the test above)
 
 make sure you changed - EmitBoolAssign
 
