@@ -46,6 +46,7 @@ protected:
     string type;
     string label;
     Register reg;
+    bool isTrueOrFalse = false;
     vector<pair<int,BranchLabelIndex>> trueList;
     vector<pair<int,BranchLabelIndex>> falseList;
     vector<pair<int,BranchLabelIndex>> nextList;
@@ -55,6 +56,8 @@ public:
     // constructor for non-function :
     Node(string type, string value, int line_number,string reg_value= "REG_UNDEF") : type(type), value(value), line_number(line_number),reg(reg_value) {}
     virtual ~Node() {};
+    void SetIsTrueOrFalse(bool is) { isTrueOrFalse = is; }
+    bool IsTrueOrFalse() {return isTrueOrFalse;}
     void MergeToNextList(const vector<pair<int,BranchLabelIndex>> &newListToMerge){
         vector<pair<int,BranchLabelIndex>> newList(nextList.begin(),nextList.end());
         newList.insert(newList.end(),newListToMerge.begin(),newListToMerge.end());

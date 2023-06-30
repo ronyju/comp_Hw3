@@ -185,15 +185,19 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
                                                                                     midCode.Patch(newLable,$4->GetTrueListToPatch());
                                                                                     midCode.Patch(newLable,$4->GetFalseListToPatch());
                                                                                 }
-                                                                                string new_reg = midCode.IdAssignEmitToBuff($1->GetType(),$2->GetValue(),$4->GetRegName(), $4->GetType());
+                                                                                string new_reg;
+                                                                                if ($1->GetType()== "BOOL" && !$4->IsTrueOrFalse()/*rony added , is it ok?*/) {new_reg = midCode.EmitBoolAssign($2->GetValue(), $4);}
+                                                                                else{ new_reg = midCode.IdAssignEmitToBuff($1->GetType(),$2->GetValue(),$4->GetRegName(), $4->GetType());}
                                                                                 $2->SetReg(new_reg);
                                                                                
 
                                                                             }                                             
                         | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3 , yylineno); 
-                                                                                string new_reg = midCode.IdAssignEmitToBuff("ID",$1->GetValue(),$3->GetRegName(), $3->GetType());
+                                                                                string new_reg;
+                                                                                if (midCode.GetTypeFromIdName($1->GetValue())== "BOOL") {new_reg = midCode.EmitBoolAssign($1->GetValue(), $3);}
+                                                                                else { new_reg = midCode.IdAssignEmitToBuff("ID",$1->GetValue(),$3->GetRegName(), $3->GetType());}
                                                                                 $1->SetReg(new_reg);
-                                                                            } // TODO: need to zext x=true                                        
+                                                                            }                                  
                         | Call SC                                           {$$ = $1;}                  
                         | RETURN SC                                         {$$ = $1; checkRet("VOID" ,"", yylineno); 
                                                                                 midCode.AddRetVoidIfNeeded(true); $$->SetHasRetToTrue();} //  emiting "void ret" and update it was done                                                           
@@ -204,8 +208,8 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
                                                                                     midCode.Patch(newLable,$2->GetTrueListToPatch());
                                                                                     midCode.Patch(newLable,$2->GetFalseListToPatch());
                                                                                 }
-                                                                                $$->SetHasRetToTrue(); 
-                                                                                midCode.EmitReturn($2->GetRegName(), $2->GetType());
+                                                                                $$->SetHasRetToTrue();
+                                                                                midCode.EmitReturn($2->GetRegName(), $2->GetType(),$2);
                                                                             } 
                         | BREAK SC                                          {IsCurrentScopeWhile($1->GetType());
                                                                                 int holeLine = midCode.EmitBreak();
@@ -251,8 +255,8 @@ NumericExp  : LPAREN Exp RPAREN            {$$ = $2;}
                                                 $$->SetReg(midCode.AddetiveAndMultiplicativeEmit ($2->GetValue() , $1, $3, funcRetType));
                                             }                                    
 
-SingleExp   : ID                      	{ $1->SetReg(midCode.GetRegFromIdName($1->GetValue())); $$ = $1;} 
-            | Call                      {$$ = $1;}                                      
+SingleExp   : ID                      	{ $1->SetReg(midCode.GetRegFromIdName($1->GetValue())); $$ = $1; midCode.loadBoolID($$, $1);} 
+            | Call                      {$$ = $1; midCode.EmitBoolFuncCall($$,$1);}                                      
             | NUM                       {$$ = $1;}                                          
             | NUM B                     {checkByteSize($1->GetValue()); $$ = $1; $$->SetType($2->GetType());}// $$ = new Node($2->GetType(), $1->GetValue(), yylineno); }                                              
             | STRING                    {$$ = $1;
@@ -261,30 +265,38 @@ SingleExp   : ID                      	{ $1->SetReg(midCode.GetRegFromIdName($1-
             | TRUE                      {$$ = $1; 
                                             int holeLine = midCode.EmitHardCodedBool();
                                             $$->MergeToTrueList(makelist(make_pair(holeLine,FIRST)));
+                                            $$->SetIsTrueOrFalse(true);
                                         }                                      
             | FALSE                     {$$ = $1; 
                                             int holeLine = midCode.EmitHardCodedBool();
                                             $$->MergeToFalseList(makelist(make_pair(holeLine,FIRST)));
+                                            $$->SetIsTrueOrFalse(true);
                                         }                                      
 
 complexExp  : NOT Exp                   {$$ = handleBoolean($2, NULL, yylineno);
                                             $$->SetTrueList($2->GetFalseListToPatch());
                                             $$->SetFalseList($2->GetTrueListToPatch());
+                                            //$$->SetIsTrueOrFalse(false); //???
                                         }                                                     
             | Exp AND MMMMMMMMMMMMMM Exp               {$$ = handleBoolean($1, $4, yylineno);
                                                             midCode.UpdateListsAndPAtchAnd($1, $4, $3->GetLabel(), $$);
+                                                             $$->SetIsTrueOrFalse(false);
                                                         }                                                        
             | Exp OR MMMMMMMMMMMMMM Exp                {$$ = handleBoolean($1, $4, yylineno);
                                                             midCode.UpdateListsAndPAtchOr($1, $4, $3->GetLabel(), $$);
+                                                            $$->SetIsTrueOrFalse(false);
                                                         }                             
             | Exp RELATIONAL Exp        {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);
-                                            int holeLine = midCode.EmitRelational($1->GetRegName(), $1->GetType(),$3->GetRegName(), $3->GetType(), $2->GetValue());
-                                            $$->MergeToTrueList(makelist(make_pair(holeLine, FIRST)));
-                                            $$->MergeToFalseList(makelist(make_pair(holeLine, SECOND)));}                                        
-            | Exp EQUALITY Exp          {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);
-                                            int holeLine = midCode.EmitRelational($1->GetRegName(), $1->GetType(),$3->GetRegName(), $3->GetType(), $2->GetValue());
+                                            int holeLine = midCode.EmitRelational($$,$1->GetRegName(), $1->GetType(),$3->GetRegName(), $3->GetType(), $2->GetValue());
                                             $$->MergeToTrueList(makelist(make_pair(holeLine, FIRST)));
                                             $$->MergeToFalseList(makelist(make_pair(holeLine, SECOND)));
+                                            $$->SetIsTrueOrFalse(false);
+                                        }                                        
+            | Exp EQUALITY Exp          {$$ = handeleMultiplacativeAndAdditiveORRelop($1,$3,yylineno,true);
+                                            int holeLine = midCode.EmitRelational($$,$1->GetRegName(), $1->GetType(),$3->GetRegName(), $3->GetType(), $2->GetValue());
+                                            $$->MergeToTrueList(makelist(make_pair(holeLine, FIRST)));
+                                            $$->MergeToFalseList(makelist(make_pair(holeLine, SECOND)));
+                                            $$->SetIsTrueOrFalse(false);
                                         }                                         
             | LPAREN Type RPAREN Exp    { checkIfConversionLegit($2->GetType(), $4->GetType(), $4->GetValue(), yylineno); $$ = new Node ($2->GetType(), $4->GetValue(), yylineno); 
                                             $$->SetReg($4->GetRegName());

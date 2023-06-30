@@ -156,8 +156,7 @@ public:
         return args;
     }
 
-    void
-    FuncDeclareEmitToBuff(string returnType, string funcName, vector<pair<string, string>> types_names_arg_vector) {
+    void  FuncDeclareEmitToBuff(string returnType, string funcName, vector<pair<string, string>> types_names_arg_vector) {
         vector<string> arguments_names;
         for (auto pair: types_names_arg_vector) {
             //std::cout << " pair.first = "<<  pair.first << "  pair.second " << pair.second << ", " ;
@@ -179,13 +178,18 @@ public:
         int idRegNumAlloca = bufferPtr->GetFreshVar();
         string llvmType = ConvertTypeToLLVM(typeName);
         string defaultType = "0"; // default val for int or byte
+
+        bufferPtr->emit(GetRegName(idRegNumAlloca) + " = alloca i32");
+
         if (typeName == "BOOL") {
             int temp_var = bufferPtr->GetFreshVar();
-            defaultType = GetRegName(temp_var) + " = zext i1 false to i32";
+            //defaultType = GetRegName(temp_var) + " = zext i1 false to i32";
+            bufferPtr->emit( GetRegName(temp_var) + " = zext i1 false to i32");
+            bufferPtr->emit("store i32 " + GetRegName(temp_var) + ", i32* " + GetRegName(idRegNumAlloca));
 
+        }else {        
+            bufferPtr->emit("store i32 " + defaultType + ", i32* " + GetRegName(idRegNumAlloca));
         }
-        bufferPtr->emit(GetRegName(idRegNumAlloca) + " = alloca i32");
-        bufferPtr->emit("store i32 " + defaultType + ", i32* " + GetRegName(idRegNumAlloca));
 
         int idRegNum = bufferPtr->GetFreshVar();
         bufferPtr->emit(GetRegName(idRegNum) + " = load i32, i32* " + GetRegName(idRegNumAlloca));
@@ -296,7 +300,7 @@ public:
         }
     }
 
-    int EmitRelational(string leftValue, string leftType, string rightValue, string rightType, string oper) {
+    int EmitRelational(Node* Mother, string leftValue, string leftType, string rightValue, string rightType, string oper) {
         string resultReg = GetRegName(bufferPtr->GetFreshVar());
         string llvmOper = OperToLlvm(oper);
 //TODO: can we never zext?
@@ -320,6 +324,7 @@ public:
     }
 
     int BooleanBranchJumpEmit(string boolReg) {
+        //std::cout << "RONY the holes came from BooleanBranchJumpEmit" <<std::endl;
         int addressOfHole = bufferPtr->emit("br i1 " + boolReg + " , label @, label @");
         return addressOfHole;
     }
@@ -347,12 +352,6 @@ public:
         if (FuncRetType == "BOOL") { bufferPtr->emit("ret i1 false"); }
     }
 
-    void EmitReturn(string regName, string regType) {
-        if (regType == "ID") { bufferPtr->emit("ret i32 " + regName); }
-        if (regType == "INT") { bufferPtr->emit("ret i32 " + regName); }
-        if (regType == "BYTE") { bufferPtr->emit("ret i8 " + regName); }
-        if (regType == "BOOL") { bufferPtr->emit("ret i1 " + regName); }
-    }
 
     void EmitDivByZeroCheck(string type, string value, string FuncRetType, string name) {
         // print a code that checks if the value is 0 and if so print error and exit.
@@ -363,8 +362,8 @@ public:
         //    bufferPtr->emit(loadReg + " = load "+ type +", "+type+"* " + value);
         //    value = loadReg;
         //}
-        bufferPtr->emit(checkRegister + " = icmp eq i32 " + value +
-                        ", 0");//value + ", 0"); //TODO: is it ok to think every thing is int?
+        bufferPtr->emit(checkRegister + " = icmp eq i32 " + value +", 0");//value + ", 0"); //TODO: is it ok to think every thing is int?
+        //std::cout << "RONY the holes came from EmitDivByZeroCheck" <<std::endl;
         int lineToPatch = bufferPtr->emit("br i1 " + checkRegister + ", label @, label @");
         vector<pair<int, BranchLabelIndex>> trueListOfAddressToPatch = bufferPtr->makelist({lineToPatch, FIRST});
         vector<pair<int, BranchLabelIndex>> falseListOfAddressToPatch = bufferPtr->makelist({lineToPatch, SECOND});
@@ -571,6 +570,131 @@ public:
         bufferPtr->emit(zextReg + " = zext i8 " + truncReg + " to i32");
         return zextReg;
     }
+
+
+string EmitBoolAssign(string varName, Node* value) // bool x = true;   - or -   x = true;
+{
+    //TODO : RONY OREN change this function !!!
+    int start = bufferPtr->emit("br label @");
+
+    string true_label = bufferPtr->genLabel();
+    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(start, FIRST)), true_label);
+    string bool_is_true = GetRegName(bufferPtr->GetFreshVar());
+    bufferPtr->emit(bool_is_true + " = add i1 0, true");
+    int return_true = bufferPtr->emit("br label @");
+
+    string false_label = bufferPtr->genLabel();
+    string bool_is_false = GetRegName(bufferPtr->GetFreshVar());
+    bufferPtr->emit(bool_is_false + " = add i1 0, false");
+    int return_false = bufferPtr->emit("br label @");
+
+    string phi = GetRegName(bufferPtr->GetFreshVar());
+    string result = bufferPtr->genLabel();
+    bufferPtr->emit(phi + " = phi i1 [" + bool_is_true + ", %" + true_label + "], [" + bool_is_false + ", %" + false_label +"]");
+
+    string temp_var = GetRegName(bufferPtr->GetFreshVar());
+    bufferPtr->emit(temp_var + " = zext i1 " + phi + " to i32");
+    string var = GetRegName(bufferPtr->GetFreshVar());
+    bufferPtr->emit(var + " = alloca i32");
+
+    bufferPtr->emit("store i32 " + temp_var + ", i32* " + var);
+
+    int idRegNum = bufferPtr->GetFreshVar();
+    bufferPtr->emit(GetRegName(idRegNum) + " = load i32, i32* " + var);
+
+    bool found;
+    SymbolTableElement *element = scopStack.SearchInAllScopesByName(varName, &found);
+    if (!found) { //TODO: remove before submit
+        std::cout << " error in EmitBoolAssign couldn't find element of name " << varName << endl;
+    }
+    element->SetReg(GetRegName(idRegNum));
+
+    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(return_false, FIRST)), result);
+    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(return_true, FIRST)), result);
+    bufferPtr->bpatch(value->GetFalseListToPatch(), false_label);
+    bufferPtr->bpatch(value->GetTrueListToPatch(), true_label);
+
+    return GetRegName(idRegNum);
+}
+
+
+
+void loadBoolID(Node* to, Node* id)
+{
+    //TODO : RONY OREN change this function !!!
+    string id_type = GetTypeFromId(id->GetValue());
+    if(id_type == "BOOL")
+    {
+        string var32 = id->GetRegName();
+        string var1 = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(var1 + " = trunc i32 " + var32 + " to i1");
+        string bool_value = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(bool_value + " = icmp eq i1 " + var1 + " , true");
+        int holeLine = bufferPtr->emit("br i1 " + bool_value + " , label @ , label @");
+        to->MergeToTrueList(bufferPtr->makelist(make_pair(holeLine,FIRST)));
+        to->MergeToFalseList(bufferPtr->makelist(make_pair(holeLine,SECOND)));
+    }
+}
+
+
+
+void EmitBoolFuncCall(Node* to, Node* call) {
+        //TODO : RONY OREN change this function !!!
+    string funcName = call->GetValue();
+    string retType;
+    bool found;
+    SymbolTableElement *element = scopStack.SearchInAllScopesByName(funcName, &found);
+    if (!found) { //TODO: remove before submit
+        std::cout << " error in EmitBoolFuncCall couldn't find element of name " << funcName << endl;
+    }
+    retType = element->GetType().GetReturnType();
+    if(retType == "BOOL")
+    {
+        string compare = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(compare + " = icmp eq i1 " + call->GetRegName() + ", true"); //Yes? call->GetRegName()?
+        //std::cout << "RONY the holes came from EmitBoolFuncCall" <<std::endl;
+        int holeLine = bufferPtr->emit("br i1 " + compare + ", label @, label @");
+        to->MergeToTrueList(bufferPtr->makelist(make_pair(holeLine,FIRST)));
+        to->MergeToFalseList(bufferPtr->makelist(make_pair(holeLine,SECOND)));
+    }
+   
+}
+
+
+void EmitReturn(string regName, string regType, Node* exp) {
+    if (regType == "ID") {
+        string actual_type = GetTypeFromId(exp->GetValue());
+        if (actual_type != "BOOL") {bufferPtr->emit("ret i32 " + regName);}
+        else                       {returnBoolean(regName, exp);}
+    }
+    if (regType == "INT") { bufferPtr->emit("ret i32 " + regName); }
+    if (regType == "BYTE") { bufferPtr->emit("ret i8 " + regName); }
+    if (regType == "BOOL") { if (exp->IsTrueOrFalse()) {bufferPtr->emit("ret i1 " + regName);} else {returnBoolean(regName, exp);} }
+}
+
+void returnBoolean (string regName, Node* exp) {
+      //TODO : RONY OREN change this function !!!
+    string var1 = GetRegName(bufferPtr->GetFreshVar());
+    string true_label = bufferPtr->genLabel();
+    bufferPtr->emit(var1 + " = add i1 0, true");
+    int location1 = bufferPtr->emit("br label @");
+
+    string var2 = GetRegName(bufferPtr->GetFreshVar());
+    string false_label = bufferPtr->genLabel();
+    bufferPtr->emit(var2 + " = add i1 0, false");
+    int location2 = bufferPtr->emit("br label @");
+
+    string phi = GetRegName(bufferPtr->GetFreshVar());
+    string result = bufferPtr->genLabel();
+    bufferPtr->emit(phi + " = phi i1 [" + var1 + ", %" + true_label + "], [" + var2 + ", %" + false_label + "]");
+
+    bufferPtr->emit("ret i1 " + phi);
+
+    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(location1, FIRST)), result);
+    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(location2, FIRST)), result);
+    bufferPtr->bpatch(exp->GetTrueListToPatch(), true_label);
+    bufferPtr->bpatch(exp->GetFalseListToPatch(), false_label);
+}
 
 
 };
