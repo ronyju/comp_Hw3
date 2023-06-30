@@ -5,9 +5,8 @@
 
 
 **what's left:**
-1. IF that has an open statement.
-2. While that has an open statement.
-5. Override
+1.Override
+2. tests
 
 
 
