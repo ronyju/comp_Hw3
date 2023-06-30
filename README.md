@@ -3,21 +3,19 @@
 
 ***test we need to debug:***
 bool foo(){
-        return true;
+        return true and true;
 }
 
-void main() {
-        while (foo()){
-                print("foo is true");
-                break;
-        }
+void main(){
+        if (foo()){ print("foo is true");}
+        else {print("foo is false");}
 }
 
 **what's left:**
 1. IF that has an open statement.
 2. While that has an open statement.
 5. Override
-6. Fix the bug - how to handle (bool a = true;)
+6. Fix the bug - how to handle (bool a = true and true;)
 
 make sure you changed - EmitBoolAssign
 
