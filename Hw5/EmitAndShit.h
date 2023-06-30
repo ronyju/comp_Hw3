@@ -450,7 +450,10 @@ public:
 
     string AddetiveAndMultiplicativeEmit(string sign, Node *leftNode, Node *rightNode, string funcRetType) {
         string rightType = rightNode->GetType();
+        if (rightType == "ID") {rightType = GetTypeFromId(rightNode->GetValue());}
         string leftType = leftNode->GetType();
+        if (leftType == "ID") {leftType = GetTypeFromId(leftNode->GetValue());}
+        //std::cout <<"RONY right type is " << rightType <<" and leftType is "<< leftType<< std::endl; //TODO: remove
         // get reg will put in value ether a register if it has (%t4)or a number (5)
         string rightValue = rightNode->GetRegName();
         string leftValue = leftNode->GetRegName();
