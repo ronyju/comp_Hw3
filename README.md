@@ -13,12 +13,11 @@ void main() {
         }
 }
 
-**whats left:**
-1. IF
-2. While that has open statment.
-3. ID ASSIGN Exp SC
-4. LPAREN Type RPAREN Exp
+**what's left:**
+1. IF that has an open statement.
+2. While that has an open statement.
 5. Override
+6. Fix the bug - how to handle (bool a = true;)
 
 
 
