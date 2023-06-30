@@ -20,11 +20,43 @@ extern ScopeStack scopStack;
 class EmitAndShit {
 
 public:
+    vector<int> alloca_numbers;
     CodeBuffer *bufferPtr;
+
+    bool IsRegAllocaInt(int reg){
+        if (reg == -1) {return false;}
+        for (auto num : alloca_numbers){
+            if (num == reg) {return true;}
+        }
+        return false;
+    }
+
+    int GetNumRegFromRegName(string regName){
+        if (regName.length() < 3) {return -1;}
+        if (regName.substr(0,2) != "%t") {return -1;}
+        string numStr = regName.substr(2);
+        int regNum = std::atoi(numStr.c_str());
+        return regNum;
+    }
+
+    bool IsRegAlloca(string regName){
+        return IsRegAllocaInt(GetNumRegFromRegName(regName));
+    }
 
     EmitAndShit() {
         CodeBuffer &buffer = CodeBuffer::instance();
         this->bufferPtr = &buffer;
+    }
+    
+    string LoadIdPointerRegToTemp(string idPointerReg){
+        // gets an idPinter reg, and load to a temp reg. return the temp reg name
+        string tempReg = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(tempReg + " = load i32, i32* " + idPointerReg);
+        return tempReg;
+    }
+
+    void StoreFromTempToIdPointerReg(string tempReg, string idPointerReg) {
+        bufferPtr->emit("store i32 " + tempReg + ", i32* " + idPointerReg);
     }
 
     string CreateNewLabel() {
@@ -49,7 +81,7 @@ public:
     void AddGlobalsToBuffer() {
         CodeBuffer &codeBuff = CodeBuffer::instance();
         // constants declaration
-        bufferPtr->emitGlobal(R"(@.div_by_zero_err_msg = constant [23 x i8] c"Error division by zero\00")");
+        bufferPtr->emitGlobal(R"(@.div_by_zero_error_message = constant [23 x i8] c"Error division by zero\00")");
         bufferPtr->emitGlobal(R"(@.int_specifier = constant [4 x i8] c"%d\0A\00")");
         bufferPtr->emitGlobal(R"(@.str_specifier = constant [4 x i8] c"%s\0A\00")");
         // function declaration
@@ -118,26 +150,6 @@ public:
         bufferPtr->emit("}");
     }
 
-
-/*
-    string ConvertArgsToLLVM (vector<pair<string,string>> types_names_arg_vector) {
-        string args = "";
-        for (auto pair : types_names_arg_vector) {
-            string llvmType = ConvertTypeToLLVM(pair.first);
-            int varNum = bufferPtr->GetFreshVar();
-            string varName = "%t" + std::to_string(varNum);
-            args = args + llvmType +" "+ varName + ", ";
-            bool found;
-            SymbolTableElement* element = scopStack.SearchInAllScopesByName(pair.second, &found);
-            if (!found) { //TODO: remove before submit
-                std::cout <<" error in ConvertArgsToLLVM couldn't find element of name "<< pair.second<< endl;
-            }
-            element->SetReg(varNum);
-        }
-        if(!types_names_arg_vector.empty()) { args.erase(args.size()-2); }
-        return args;
-    }
-*/
     string GetRegFromIdName(string idName) {
         bool found;
         SymbolTableElement *element = scopStack.SearchInAllScopesByName(idName, &found);
@@ -173,22 +185,21 @@ public:
         return "%t" + std::to_string(regNum);
     }
 
-    string IdDeclareEmitToBuff(string typeName, string varName) {
-        //std::cout <<"IdDeclareEmitToBuff typeName = "<< typeName << " varName = "<< varName<< std::endl; //TODO: remove before submit
+    string IdDeclareEmitToBuff(string typeName, string varName) { // Type ID SC
         int idRegNumAlloca = bufferPtr->GetFreshVar();
         string llvmType = ConvertTypeToLLVM(typeName);
-        string defaultType = "0"; // default val for int or byte
+        string theDefaultValue = "0"; // default val for int or byte
 
         bufferPtr->emit(GetRegName(idRegNumAlloca) + " = alloca i32");
+        alloca_numbers.push_back(idRegNumAlloca);
 
         if (typeName == "BOOL") {
             int temp_var = bufferPtr->GetFreshVar();
-            //defaultType = GetRegName(temp_var) + " = zext i1 false to i32";
             bufferPtr->emit( GetRegName(temp_var) + " = zext i1 false to i32");
             bufferPtr->emit("store i32 " + GetRegName(temp_var) + ", i32* " + GetRegName(idRegNumAlloca));
 
         }else {        
-            bufferPtr->emit("store i32 " + defaultType + ", i32* " + GetRegName(idRegNumAlloca));
+            bufferPtr->emit("store i32 " + theDefaultValue + ", i32* " + GetRegName(idRegNumAlloca));
         }
 
         int idRegNum = bufferPtr->GetFreshVar();
@@ -199,8 +210,9 @@ public:
         if (!found) { //TODO: remove before submit
             std::cout << " error in IdDeclareEmitToBuff couldn't find element of name " << varName << endl;
         }
-        element->SetReg(idRegNum);
-        return GetRegName(idRegNum);
+        //Rony - changed- returning the alloca value.
+        element->SetReg(idRegNumAlloca, true);//element->SetReg(idRegNum);
+        return GetRegName(idRegNumAlloca);//return GetRegName(idRegNum);
     }
 
     string GetTypeFromId(string idName) {
@@ -214,16 +226,21 @@ public:
         return element->GetType().GetTypeName();
     }
 
-    string IdAssignEmitToBuff(string typeName, string varName, string value, string valueType) {
-        //std::cout <<"IdAssignEmitToBuff typeName = "<< typeName << " varName = "<< varName<< " value = "<< value<< " valueType = "<<valueType << std::endl; //TODO: remove before submit
-        // we will assign with alloca and that save it also in a temp reg so we can play with it later, without load and store
+    string IdAssignEmitToBuff(string typeName, string varName, string value, string valueType) { //Type ID ASSIGN Exp SC  - the first assighment
         if (typeName == "ID") { typeName = GetTypeFromIdName(varName); }
         int idRegNumAlloca = bufferPtr->GetFreshVar();
         int idRegNum = bufferPtr->GetFreshVar();
-        string newValue = value;
+        
         string llvmType = ConvertTypeToLLVM(typeName);
 
+        //Rony added - if value is an ID it's register is the alloca register - so we need to store it :
+        if (valueType == "ID" && IsRegAlloca(value)){
+            value = LoadIdPointerRegToTemp(value);
+        }
+
+        string newValue = value;
         bufferPtr->emit(GetRegName(idRegNumAlloca) + " = alloca i32");
+        alloca_numbers.push_back(idRegNumAlloca);
 
         // int x = y or int x = 5; or int x = 5+4  (than value will be %ti)
         //TODO: can we never zext?
@@ -247,8 +264,10 @@ public:
         if (!found) { //TODO: remove before submit
             std::cout << " error in IdAssignEmitToBuff couldn't find element of name " << varName << endl;
         }
-        element->SetReg(idRegNum);
-        return GetRegName(idRegNum);
+
+        //Rony - changed- returning the alloca value.
+        element->SetReg(idRegNumAlloca, true); //element->SetReg(idRegNum);
+        return GetRegName(idRegNumAlloca);// return GetRegName(idRegNum);
     }
 
     void Patch(const string label, vector<pair<int, BranchLabelIndex>> nextListToPatch) {
@@ -317,6 +336,15 @@ public:
         }
         */
 
+       //Rony added if left or right are ID we need to load them :
+        if (rightType == "ID" && IsRegAlloca(rightValue)){
+            rightValue = LoadIdPointerRegToTemp(rightValue);
+        }
+        if (leftType == "ID"  && IsRegAlloca(leftValue)){
+            leftValue = LoadIdPointerRegToTemp(leftValue);
+        }
+
+
         bufferPtr->emit(resultReg + " = icmp " + llvmOper + " i32 " + leftValue + " , " + rightValue);
 
         return BooleanBranchJumpEmit(resultReg);
@@ -352,29 +380,27 @@ public:
         if (FuncRetType == "BOOL") { bufferPtr->emit("ret i1 false"); }
     }
 
-
     void EmitDivByZeroCheck(string type, string value, string FuncRetType, string name) {
         // print a code that checks if the value is 0 and if so print error and exit.
         string checkRegister = GetRegName(bufferPtr->GetFreshVar());
+        
+        //Rony added - if type is ID call load first:
+        if (type == "ID" && IsRegAlloca(value)) {
+            value = LoadIdPointerRegToTemp(value);
+        }
+        
         type = ConvertTypeToLLVM(type, name);
-        //if (value.substr(0,1) == "%") {
-        //    string loadReg = GetRegName(bufferPtr->GetFreshVar());
-        //    bufferPtr->emit(loadReg + " = load "+ type +", "+type+"* " + value);
-        //    value = loadReg;
-        //}
-        bufferPtr->emit(checkRegister + " = icmp eq i32 " + value +", 0");//value + ", 0"); //TODO: is it ok to think every thing is int?
-        //std::cout << "RONY the holes came from EmitDivByZeroCheck" <<std::endl;
+        bufferPtr->emit(checkRegister + " = icmp eq i32 " + value +", 0");//value + ", 0"); 
         int lineToPatch = bufferPtr->emit("br i1 " + checkRegister + ", label @, label @");
         vector<pair<int, BranchLabelIndex>> trueListOfAddressToPatch = bufferPtr->makelist({lineToPatch, FIRST});
         vector<pair<int, BranchLabelIndex>> falseListOfAddressToPatch = bufferPtr->makelist({lineToPatch, SECOND});
 
-        string trueLable = bufferPtr->genLabel();
-        bufferPtr->emit(
-                "call void (i8*) @print(i8* getelementptr ([23 x i8], [23 x i8]* @.div_by_zero_err_msg, i32 0, i32 0))");
+        string trueLable = CreateNewLabel();
+        bufferPtr->emit("call void (i8*) @print(i8* getelementptr ([23 x i8], [23 x i8]* @.div_by_zero_error_message, i32 0, i32 0))");
         bufferPtr->emit("call void (i32) @exit(i32 0)");
         DefultReturnEmit(FuncRetType);
 
-        string falseLabel = bufferPtr->genLabel();
+        string falseLabel = CreateNewLabel();
         bufferPtr->bpatch(trueListOfAddressToPatch, trueLable);
         bufferPtr->bpatch(falseListOfAddressToPatch, falseLabel);
     }
@@ -449,19 +475,26 @@ public:
     }
 
     string AddetiveAndMultiplicativeEmit(string sign, Node *leftNode, Node *rightNode, string funcRetType) {
-        string rightType = rightNode->GetType();
-        if (rightType == "ID") {rightType = GetTypeFromId(rightNode->GetValue());}
-        string leftType = leftNode->GetType();
-        if (leftType == "ID") {leftType = GetTypeFromId(leftNode->GetValue());}
-        //std::cout <<"RONY right type is " << rightType <<" and leftType is "<< leftType<< std::endl; //TODO: remove
+        
         // get reg will put in value ether a register if it has (%t4)or a number (5)
         string rightValue = rightNode->GetRegName();
         string leftValue = leftNode->GetRegName();
-
+        
+        string rightType = rightNode->GetType();
+        string originalRightType = rightType;
+        if (rightType == "ID") {
+            rightType = GetTypeFromId(rightNode->GetValue());
+            if (IsRegAlloca(rightValue)) {rightValue = LoadIdPointerRegToTemp(rightValue);} // Rony added 
+        }
+        string leftType = leftNode->GetType();
+        if (leftType == "ID") {
+            leftType = GetTypeFromId(leftNode->GetValue());
+            if (IsRegAlloca(leftValue)) {leftValue = LoadIdPointerRegToTemp(leftValue); }// Rony added 
+        }
+        
         string tempReg = GetRegName(bufferPtr->GetFreshVar());
         string operation = GetOpFromSign(sign);
-        //operation = (operation == "div" && leftType=="BYTE" && rightType=="BYTE")? "udiv":"sdiv";
-        if (operation == "sdiv") { EmitDivByZeroCheck(rightType, rightValue, funcRetType, rightNode->GetValue()); }
+        if (operation == "sdiv") { EmitDivByZeroCheck(originalRightType, rightValue, funcRetType, rightNode->GetValue()); }
 
 
         // as if it is INT:
@@ -523,7 +556,9 @@ public:
                 args += "i8* getelementptr ([" + length + " x i8], [" + length + " x i8]* " + argReg.GetRegister() +
                         ", i32 0, i32 0) ,";
             } else {
-                args += "i32 " + argReg.GetRegister() + ", ";
+                string cur_reg = argReg.GetRegister();
+                if (argReg.IsAlloca() || IsRegAlloca(cur_reg)) { cur_reg = LoadIdPointerRegToTemp(cur_reg); } //Rony added for registers that are alloca 
+                args += "i32 " + cur_reg + ", ";
             }
         }
         // remove last ,:
@@ -555,7 +590,7 @@ public:
 
     string EmitCastIntToByte(string newType, Node* exp) {
         string expType = exp->GetType();
-        if (exp->GetType() == "ID") { expType = GetTypeFromIdName(exp->GetValue()); }
+        if (exp->GetType() == "ID" && IsRegAlloca(exp->GetRegName())) { expType = GetTypeFromIdName(exp->GetValue()); }
         if (newType!= "BYTE" || expType!="INT") {
             return "NOP";
         }
@@ -564,6 +599,10 @@ public:
         // byte b = (byte) a ;
         // we want no b to be 255.
         string expReg = exp->GetRegName();
+
+        //rony added if the type is ID load it 
+        if (exp->GetType() == "ID" && IsRegAlloca(expReg)) {expReg = LoadIdPointerRegToTemp(expReg);} 
+
         // will trunc than zext and return the new reg
         string truncReg = GetRegName(bufferPtr->GetFreshVar());
         string zextReg = GetRegName(bufferPtr->GetFreshVar());
@@ -573,129 +612,133 @@ public:
         return zextReg;
     }
 
-
-
-int EmitLable(string res, string& regName, string& labelName, bool givenLable = false) {
-    // emiting the lable if res =true its the true lable if res = false its the false lable.
-    regName = GetRegName(bufferPtr->GetFreshVar());
-    if (!givenLable) {labelName = bufferPtr->genLabel();}
-    bufferPtr->emit(regName + " = add i1 0, " + res);
-    int HoleLine = bufferPtr->emit("br label @");
-    return HoleLine;
-}
-
-string EmitPhi(string trueHolderReg, string true_label, string falseHolderReg, string false_label) {
-    string phi = GetRegName(bufferPtr->GetFreshVar());
-    bufferPtr->emit(phi + " = phi i1 [" + trueHolderReg + ", %" + true_label + "], [" + falseHolderReg + ", %" + false_label + "]");
-    return phi;
-}
-
-string EmitBoolAssign(string varName, Node* value) // bool x = true;   - or -   x = true;
-{
-    int headLable = bufferPtr->emit("br label @");
-
-    string trueLabel = bufferPtr->genLabel();
-    bufferPtr->bpatch(bufferPtr->makelist(make_pair(headLable, FIRST)), trueLabel);
-
-    string trueHolderReg;
-    int trueHoleLine = EmitLable ("true", trueHolderReg, trueLabel, true);
-
-    string falseLabel;
-    string falseHolderReg;
-    int falseHoleLine = EmitLable ("false", falseHolderReg, falseLabel);
-
-    string phiLable = bufferPtr->genLabel();
-    string phi = EmitPhi(trueHolderReg, trueLabel, falseHolderReg, falseLabel);
-
-    string temp_var = GetRegName(bufferPtr->GetFreshVar());
-    bufferPtr->emit(temp_var + " = zext i1 " + phi + " to i32");
-    string var = GetRegName(bufferPtr->GetFreshVar());
-    bufferPtr->emit(var + " = alloca i32");
-
-    bufferPtr->emit("store i32 " + temp_var + ", i32* " + var);
-
-    int idRegNum = bufferPtr->GetFreshVar();
-    bufferPtr->emit(GetRegName(idRegNum) + " = load i32, i32* " + var);
-
-    bool found;
-    SymbolTableElement *element = scopStack.SearchInAllScopesByName(varName, &found);
-    if (!found) { //TODO: remove before submit
-        std::cout << " error in EmitBoolAssign couldn't find element of name " << varName << endl;
+    int EmitLable(string res, string& regName, string& labelName, bool givenLable = false) {
+        // emiting the lable if res =true its the true lable if res = false its the false lable.
+        regName = GetRegName(bufferPtr->GetFreshVar());
+        if (!givenLable) {labelName = CreateNewLabel();}
+        bufferPtr->emit(regName + " = add i1 0, " + res);
+        int HoleLine = bufferPtr->emit("br label @");
+        return HoleLine;
     }
-    element->SetReg(GetRegName(idRegNum));
 
-    bufferPtr->bpatch(bufferPtr->makelist(make_pair(falseHoleLine, FIRST)), phiLable);
-    bufferPtr->bpatch(bufferPtr->makelist(make_pair(trueHoleLine, FIRST)), phiLable);
-    bufferPtr->bpatch(value->GetFalseListToPatch(), falseLabel);
-    bufferPtr->bpatch(value->GetTrueListToPatch(), trueLabel);
-
-    return GetRegName(idRegNum);
-}
-
-
-int loadBoolID(string idRegName)
-{
-    string truncReg = GetRegName(bufferPtr->GetFreshVar());
-    bufferPtr->emit(truncReg + " = trunc i32 " + idRegName + " to i1");
-    string boolReg = GetRegName(bufferPtr->GetFreshVar());
-    bufferPtr->emit(boolReg + " = icmp eq i1 " + truncReg + " , true");
-    int holeLine = bufferPtr->emit("br i1 " + boolReg + " , label @ , label @");
-    return holeLine;
-}
-
-
-int EmitBoolFuncCall(string funcName,string funcReg) {
-    string retType;
-    bool found;
-    SymbolTableElement *element = scopStack.SearchInAllScopesByName(funcName, &found);
-    if (!found) { //TODO: remove before submit
-        std::cout << " error in EmitBoolFuncCall couldn't find element of name " << funcName << endl;
+    string EmitPhi(string trueHolderReg, string true_label, string falseHolderReg, string false_label) {
+        string phi = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(phi + " = phi i1 [" + trueHolderReg + ", %" + true_label + "], [" + falseHolderReg + ", %" + false_label + "]");
+        return phi;
     }
-    retType = element->GetType().GetReturnType();
-    if(retType == "BOOL")
+
+    string EmitBoolAssign(string varName, Node* value) // bool x = true;   - or -   x = true;
     {
-        string comReg = GetRegName(bufferPtr->GetFreshVar());
-        bufferPtr->emit(comReg + " = icmp eq i1 " + funcReg + ", true");
-        int holeLine = bufferPtr->emit("br i1 " + comReg + ", label @, label @");
+        int headLable = bufferPtr->emit("br label @");
+
+        string trueLabel = CreateNewLabel();
+        bufferPtr->bpatch(bufferPtr->makelist(make_pair(headLable, FIRST)), trueLabel);
+
+        string trueHolderReg;
+        int trueHoleLine = EmitLable ("true", trueHolderReg, trueLabel, true);
+
+        string falseLabel;
+        string falseHolderReg;
+        int falseHoleLine = EmitLable ("false", falseHolderReg, falseLabel);
+
+        string phiLable = CreateNewLabel();
+        string phi = EmitPhi(trueHolderReg, trueLabel, falseHolderReg, falseLabel);
+
+        string tempReg = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(tempReg + " = zext i1 " + phi + " to i32");
+        string allocaReg = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(allocaReg + " = alloca i32");
+        alloca_numbers.push_back(GetNumRegFromRegName(allocaReg));
+
+        bufferPtr->emit("store i32 " + tempReg + ", i32* " + allocaReg);
+
+        int idRegNum = bufferPtr->GetFreshVar();
+        bufferPtr->emit(GetRegName(idRegNum) + " = load i32, i32* " + allocaReg);
+
+        bool found;
+        SymbolTableElement *element = scopStack.SearchInAllScopesByName(varName, &found);
+        if (!found) { //TODO: remove before submit
+            std::cout << " error in EmitBoolAssign couldn't find element of name " << varName << endl;
+        }
+        element->SetReg(allocaReg, true);
+
+        bufferPtr->bpatch(bufferPtr->makelist(make_pair(falseHoleLine, FIRST)), phiLable);
+        bufferPtr->bpatch(bufferPtr->makelist(make_pair(trueHoleLine, FIRST)), phiLable);
+        bufferPtr->bpatch(value->GetFalseListToPatch(), falseLabel);
+        bufferPtr->bpatch(value->GetTrueListToPatch(), trueLabel);
+
+        return allocaReg;
+    }
+
+    int loadBoolID(string idRegName)
+    {
+        if (IsRegAlloca(idRegName)) {idRegName = LoadIdPointerRegToTemp(idRegName);}
+        string truncReg = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(truncReg + " = trunc i32 " + idRegName + " to i1");
+        string boolReg = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(boolReg + " = icmp eq i1 " + truncReg + " , true");
+        int holeLine = bufferPtr->emit("br i1 " + boolReg + " , label @ , label @");
         return holeLine;
     }
-    return -1;
-   
-}
 
-
-void EmitReturn(string regName, string regType, Node* exp) {
-    if (regType == "ID") {
-        string actual_type = GetTypeFromId(exp->GetValue());
-        if (actual_type != "BOOL") {bufferPtr->emit("ret i32 " + regName);}
-        else                       {returnBoolean(regName, exp);}
-    }
-    if (regType == "INT") { bufferPtr->emit("ret i32 " + regName); }
-    if (regType == "BYTE") { bufferPtr->emit("ret i8 " + regName); }
-    if (regType == "BOOL") { if (exp->IsTrueOrFalse()) {bufferPtr->emit("ret i1 " + regName);} else {returnBoolean(regName, exp);} }
-}
-
-
-void returnBoolean (string regName, Node* exp) {
-    string trueHolderReg;
-    string trueLabel;
-    int trueHoleLine = EmitLable ("true", trueHolderReg, trueLabel);
-
-    string falseLabel;
-    string falseHolderReg;
-    int falseHoleLine = EmitLable ("false", falseHolderReg, falseLabel);
-
+    int EmitBoolFuncCall(string funcName,Register funcRegister) {
+        string funcReg = funcRegister.GetRegister();
+        if (funcRegister.IsAlloca() || IsRegAlloca(funcRegister.GetRegister())) { funcReg = LoadIdPointerRegToTemp(funcReg); }
+        string retType;
+        bool found;
+        SymbolTableElement *element = scopStack.SearchInAllScopesByName(funcName, &found);
+        if (!found) { //TODO: remove before submit
+            std::cout << " error in EmitBoolFuncCall couldn't find element of name " << funcName << endl;
+        }
+        retType = element->GetType().GetReturnType();
+        if(retType == "BOOL")
+        {
+            string comReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(comReg + " = icmp eq i1 " + funcReg + ", true");
+            int holeLine = bufferPtr->emit("br i1 " + comReg + ", label @, label @");
+            return holeLine;
+        }
+        return -1;
     
-    string result = bufferPtr->genLabel();
-    string phi = EmitPhi(trueHolderReg, trueLabel, falseHolderReg, falseLabel);
+    }
 
-    bufferPtr->emit("ret i1 " + phi);
+    void EmitReturn(string regName, string regType, Node* exp) {
+        if (regType == "ID") {
+            string actual_type = GetTypeFromId(exp->GetValue());
+            if (IsRegAlloca(regName)) {regName = LoadIdPointerRegToTemp(regName);} //Rony added 
+            if (actual_type != "BOOL") {bufferPtr->emit("ret i32 " + regName);}
+            else                       {returnBoolean(regName, exp);}
+        }
+        if (regType == "INT") { bufferPtr->emit("ret i32 " + regName); }
+        if (regType == "BYTE") { bufferPtr->emit("ret i8 " + regName); }
+        if (regType == "BOOL") { if (exp->IsTrueOrFalse()) {bufferPtr->emit("ret i1 " + regName);} else {returnBoolean(regName, exp);} }
+    }
 
-    bufferPtr->bpatch(bufferPtr->makelist(make_pair(trueHoleLine, FIRST)), result);
-    bufferPtr->bpatch(bufferPtr->makelist(make_pair(falseHoleLine, FIRST)), result);
-    bufferPtr->bpatch(exp->GetTrueListToPatch(), trueLabel);
-    bufferPtr->bpatch(exp->GetFalseListToPatch(), falseLabel);
-}
+    void returnBoolean (string regName, Node* exp) {
+        string trueHolderReg;
+        string trueLabel;
+        int trueHoleLine = EmitLable ("true", trueHolderReg, trueLabel);
+
+        string falseLabel;
+        string falseHolderReg;
+        int falseHoleLine = EmitLable ("false", falseHolderReg, falseLabel);
+
+        
+        string result = CreateNewLabel();
+        string phi = EmitPhi(trueHolderReg, trueLabel, falseHolderReg, falseLabel);
+
+        bufferPtr->emit("ret i1 " + phi);
+
+        bufferPtr->bpatch(bufferPtr->makelist(make_pair(trueHoleLine, FIRST)), result);
+        bufferPtr->bpatch(bufferPtr->makelist(make_pair(falseHoleLine, FIRST)), result);
+        bufferPtr->bpatch(exp->GetTrueListToPatch(), trueLabel);
+        bufferPtr->bpatch(exp->GetFalseListToPatch(), falseLabel);
+    }
+
+    void StoreNewValueToId(string idPointerReg, string valueReg)
+    {
+        bufferPtr->emit("store i32 " + valueReg + ", i32* " + idPointerReg);      
+    }
 
 
 };

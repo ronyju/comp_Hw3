@@ -12,6 +12,7 @@ class Register {
 public:
     string registerValue;
     bool isString = false;
+    bool isAlloca = false;
     int stringLength = 0;
     string GetRegName(int regNum){
         return "%t"+std::to_string(regNum);
@@ -22,10 +23,13 @@ public:
         registerValue = GetRegName(regNum);
     };
     void SetRegister(int regNum) { registerValue = GetRegName(regNum); }
+    void SetRegister(int regNum, bool alloca) { registerValue = GetRegName(regNum); isAlloca =alloca;}
     void SetRegister(string value) { registerValue = value; }
+    void SetRegister(string value, bool alloca) { registerValue = value; isAlloca =alloca;}
     void SetIsString(bool is) { isString = is; }
     void SetStringLength (int length) { stringLength = length; }
     bool IsString () { return isString; }
+    bool IsAlloca() {return isAlloca;}
     int GetStringLength() { return stringLength; }
 
     string GetRegister () {return registerValue; }

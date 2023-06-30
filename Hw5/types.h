@@ -90,7 +90,9 @@ public:
     string GetRegName() { return reg.GetRegister(); }
     Register GetReg() { return reg; }
     void SetReg(int reg_num){reg.SetRegister(reg_num);}
+    void SetReg(int reg_num, bool alloca){reg.SetRegister(reg_num, alloca);}
     void SetReg(string reg_value){reg.SetRegister(reg_value);}
+    void SetReg(string reg_value, bool alloca){reg.SetRegister(reg_value, alloca);}
     void SetIsString(bool is) { reg.SetIsString(is); }
     void SetStringLength (int length) { reg.SetStringLength(length); }
     bool IsString () { return reg.IsString(); }

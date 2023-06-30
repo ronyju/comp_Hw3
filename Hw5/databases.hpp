@@ -51,7 +51,9 @@ public:
     string ToString();
     bool IsNoArguments() { return isNoArguments; }
     void SetReg(int regNumber) { reg.SetRegister(regNumber);}
+    void SetReg(int regNumber, bool alloca) { reg.SetRegister(regNumber, alloca);}
     void SetReg(string regValue) { reg.SetRegister(regValue);}
+    void SetReg(string regValue, bool alloca) { reg.SetRegister(regValue, alloca);}
     void SetArgumentsRegs (vector <string> new_arg_reg_vec) { arguments_regs = new_arg_reg_vec; }
     string GetReg();
 };
@@ -74,7 +76,9 @@ public:
     bool IsFunc () { return type.IsFunc(); }
     string ToString();
     void SetReg(int reg_number) { type.SetReg(reg_number);}
+    void SetReg(int reg_number, bool alloca) { type.SetReg(reg_number, alloca);}
     void SetReg(string regValue) { type.SetReg(regValue);}
+    void SetReg(string regValue, bool alloca) { type.SetReg(regValue, alloca);}
 
     string GetReg(){return type.GetReg();}
 };

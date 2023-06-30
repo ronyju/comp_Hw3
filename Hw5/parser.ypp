@@ -158,7 +158,7 @@ OpenIfWhileStatement    : IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Exp
                                                                                                                                                                                                                                                         midCode.Patch($15->GetLabel(),$6->GetFalseListToPatch()); // patching the false list of the boolean check to the begining of the ELSE Statement
                                                                                                                                                                                                                                                         $$->MergeToNextList($11->GetNextListToPatch()); // patching the end of the true statment to be in the nextlist of the mother node
                                                                                                                                                                                                                                                     }
-                        | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  OpenIfWhileStatement NNNNNNNNNNNNNN   {popScope();
+                        | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM_WHILE_BFORE_BOOL Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  OpenIfWhileStatement NNNNNNNNNNNNNN   {popScope();
                                                                                                                                                                                     // RONY - same as regular if while
                                                                                                                                                                                     $$->MergeToNextList(loopsList.back().GetNextList()); // add the next list of the brake and contiue that was gatheres in this specific loop                                                                                                                             
                                                                                                                                                                                     $11->MergeToNextList($12->GetNextListToPatch()); // add the N address to the next list of the statment 
@@ -180,7 +180,7 @@ ClosedYesIfWhileStatment : IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Ex
                                                                                                                                                                                                                                                         $$->MergeToNextList($11->GetNextListToPatch()); // patching the end of the true statment to be in the nextlist of the mother node
                                                                                                                                         
                                                                                                                                                                                                                                                     }
-                         | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  ClosedIfWhileStatment  NNNNNNNNNNNNNN {popScope();
+                         | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM_WHILE_BFORE_BOOL Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  ClosedIfWhileStatment  NNNNNNNNNNNNNN {popScope();
                                                                                                                                                                                     $$->MergeToNextList(loopsList.back().GetNextList()); // add the next list of the brake and contiue that was gatheres in this specific loop                                                                                                                             
                                                                                                                                                                                     $11->MergeToNextList($12->GetNextListToPatch()); // add the N address to the next list of the statment 
                                                                                                                                                                                     midCode.Patch($5->GetLabel(),$2->GetNextListToPatch()); //patching the start of the block to the first entry - WHYYYY??!??!?!?! FFS  cuz LLVM says so 
@@ -193,8 +193,8 @@ ClosedYesIfWhileStatment : IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Ex
 NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {popScope();}                                          
                         | Type ID SC                 	                    {addElementToScope($1->GetType(), $2->GetValue() , "NO_VALUE", "NO_VALUE" ,yylineno);
                                                                                 string new_reg = midCode.IdDeclareEmitToBuff($1->GetType(), $2->GetValue());
-                                                                                $2->SetReg(new_reg);
-                                                                            }                       
+                                                                                $2->SetReg(new_reg, true); // Rony - set as alloca
+                                                                             }                       
                         | Type ID ASSIGN Exp SC      		                {addElementToScope($1->GetType(), $2->GetValue() , $4->GetType() , $4->GetValue() ,yylineno);
                                                                                 if($4->GetValue() == "true" || $4->GetValue() == "false") {
                                                                                     string newLable = midCode.CreateNewLabel(); 
@@ -204,15 +204,16 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
                                                                                 string new_reg;
                                                                                 if ($1->GetType()== "BOOL" && !$4->IsTrueOrFalse()/*rony added , is it ok?*/) {new_reg = midCode.EmitBoolAssign($2->GetValue(), $4);}
                                                                                 else{ new_reg = midCode.IdAssignEmitToBuff($1->GetType(),$2->GetValue(),$4->GetRegName(), $4->GetType());}
-                                                                                $2->SetReg(new_reg);
+                                                                                $2->SetReg(new_reg, true); // Rony - set as alloca
                                                                                
 
                                                                             }                                             
-                        | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3 , yylineno); 
+                        | ID ASSIGN Exp SC           		                {assignNewValToExistName($1->GetValue(),$3 , yylineno);
+                                                                                $1->SetReg(midCode.GetRegFromIdName($1->GetValue())); 
                                                                                 string new_reg;
-                                                                                if (midCode.GetTypeFromIdName($1->GetValue())== "BOOL") {new_reg = midCode.EmitBoolAssign($1->GetValue(), $3);}
-                                                                                else { new_reg = midCode.IdAssignEmitToBuff("ID",$1->GetValue(),$3->GetRegName(), $3->GetType());}
-                                                                                $1->SetReg(new_reg);
+                                                                                if (midCode.GetTypeFromIdName($1->GetValue())== "BOOL") {new_reg = midCode.EmitBoolAssign($1->GetValue(), $3); $1->SetReg(new_reg, true);}
+                                                                                else { midCode.StoreNewValueToId($1->GetRegName(), $3->GetRegName()); }//midCode.IdAssignEmitToBuff("ID",$1->GetValue(),$3->GetRegName(), $3->GetType());} //TODO: create a new function! for this case 
+                                                                                
                                                                             }                                  
                         | Call SC                                           {$$ = $1;}                  
                         | RETURN SC                                         {$$ = $1; checkRet("VOID" ,"", yylineno); 
@@ -235,10 +236,12 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
 
 
 Call 	    : ID LPAREN ExpList RPAREN                                      {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);
+                                                                                $1->SetReg(midCode.GetRegFromIdName($1->GetValue()));
                                                                                 midCode.EmitCallFuncWithArgs($1, reg_arg_vector);
                                                                                 reg_arg_vector.clear();
                                                                             }                                     
             | ID LPAREN RPAREN                                              {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);
+                                                                                $1->SetReg(midCode.GetRegFromIdName($1->GetValue()));
                                                                                 string newReg = midCode.EmitCallFuncNoArgs($1);
                                                                                 $$->SetReg(newReg);
                                                                             }                                        
@@ -280,7 +283,7 @@ SingleExp   : ID                      	{   $1->SetReg(midCode.GetRegFromIdName($
                                             }
                                         } 
             | Call                      {$$ = $1; 
-                                            int holeLine = midCode.EmitBoolFuncCall($1->GetValue(), $1->GetRegName());
+                                            int holeLine = midCode.EmitBoolFuncCall($1->GetValue(), $1->GetReg());
                                             if (holeLine != -1){
                                                 $$->MergeToTrueList(makelist(make_pair(holeLine,FIRST)));
                                                 $$->MergeToFalseList(makelist(make_pair(holeLine,SECOND)));
@@ -350,11 +353,18 @@ M_WHILE_STACK:        {loopNextListAndLable LoopWhile(lastLableSaved);
 //N M markers for BP
 MMMMMMMMMMMMMM :                   {$$ = new Node("NONE","NONE",yylineno); 
                                     string newLable = midCode.CreateNewLabel(); 
-                                    $$->SetLabel(newLable); 
-                                    lastLableSaved = newLable;}
+                                    $$->SetLabel(newLable);
+                                   }
+MMMMMMMMMMMMMM_WHILE_BFORE_BOOL:    {$$ = new Node("NONE","NONE",yylineno); 
+                                     string newLable = midCode.CreateNewLabel(); 
+                                     $$->SetLabel(newLable); 
+                                     lastLableSaved = newLable;
+                                    }
+
 
 NNNNNNNNNNNNNN :                   {$$ = new Node("NONE","NONE",yylineno); 
-                                    $$->MergeToNextList(midCode.CreateNewPlaceToPatch());}
+                                    $$->MergeToNextList(midCode.CreateNewPlaceToPatch());
+                                   }
 %%
 
 
