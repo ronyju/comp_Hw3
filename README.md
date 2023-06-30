@@ -5,18 +5,25 @@
 
 
 **what's left:**
-1.Override
-2. tests
+1. Override
+
+   
+3. tests
 
 
 **tests_assina:**
 in tests_assina from 0-20 FAILD:
-test 5 - fixed
-test 6 - fixed
-test 8 - fixed
-test 12 
-test 18 
-test 20 
+
+- test 5 - fixed
+- 
+- test 6 - fixed
+- 
+- test 8 - fixed
+- test 12
+- 
+- test 18
+- 
+- test 20 
 
 
 
