@@ -573,6 +573,13 @@ public:
         call += "call " + ConvertTypeToLLVM(returnType);
 
         bufferPtr->emit(call + " @" + funcName + "( " + args + " )");
+
+        if(returnType == "BYTE") { 
+            string zextReg = GetRegName(bufferPtr->GetFreshVar());
+            bufferPtr->emit(zextReg + " = zext i8 " + resultReg + " to i32");
+            resultReg = zextReg;
+        }
+
         return resultReg;
     }
 
@@ -709,8 +716,14 @@ public:
             if (actual_type != "BOOL") {bufferPtr->emit("ret i32 " + regName);}
             else                       {returnBoolean(regName, exp);}
         }
-        if (regType == "INT") { bufferPtr->emit("ret i32 " + regName); }
-        if (regType == "BYTE") { bufferPtr->emit("ret i8 " + regName); }
+        if (regType == "INT") { 
+            bufferPtr->emit("ret i32 " + regName); 
+        }
+        if (regType == "BYTE") { 
+            int truncReg = bufferPtr->GetFreshVar(); 
+            bufferPtr->emit(GetRegName(truncReg) + " = trunc i32 " + regName + " to i8"); 
+            bufferPtr->emit("ret i8 " + GetRegName(truncReg));
+        }
         if (regType == "BOOL") { if (exp->IsTrueOrFalse()) {bufferPtr->emit("ret i1 " + regName);} else {returnBoolean(regName, exp);} }
     }
 

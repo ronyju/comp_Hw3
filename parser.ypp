@@ -158,7 +158,7 @@ OpenIfWhileStatement    : IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Exp
                                                                                                                                                                                                                                                         midCode.Patch($15->GetLabel(),$6->GetFalseListToPatch()); // patching the false list of the boolean check to the begining of the ELSE Statement
                                                                                                                                                                                                                                                         $$->MergeToNextList($11->GetNextListToPatch()); // patching the end of the true statment to be in the nextlist of the mother node
                                                                                                                                                                                                                                                     }
-                        | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  OpenIfWhileStatement NNNNNNNNNNNNNN   {popScope();
+                        | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM_WHILE_BFORE_BOOL Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  OpenIfWhileStatement NNNNNNNNNNNNNN   {popScope();
                                                                                                                                                                                     // RONY - same as regular if while
                                                                                                                                                                                     $$->MergeToNextList(loopsList.back().GetNextList()); // add the next list of the brake and contiue that was gatheres in this specific loop                                                                                                                             
                                                                                                                                                                                     $11->MergeToNextList($12->GetNextListToPatch()); // add the N address to the next list of the statment 
@@ -180,7 +180,7 @@ ClosedYesIfWhileStatment : IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Ex
                                                                                                                                                                                                                                                         $$->MergeToNextList($11->GetNextListToPatch()); // patching the end of the true statment to be in the nextlist of the mother node
                                                                                                                                         
                                                                                                                                                                                                                                                     }
-                         | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  ClosedIfWhileStatment  NNNNNNNNNNNNNN {popScope();
+                         | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM_WHILE_BFORE_BOOL Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  ClosedIfWhileStatment  NNNNNNNNNNNNNN {popScope();
                                                                                                                                                                                     $$->MergeToNextList(loopsList.back().GetNextList()); // add the next list of the brake and contiue that was gatheres in this specific loop                                                                                                                             
                                                                                                                                                                                     $11->MergeToNextList($12->GetNextListToPatch()); // add the N address to the next list of the statment 
                                                                                                                                                                                     midCode.Patch($5->GetLabel(),$2->GetNextListToPatch()); //patching the start of the block to the first entry - WHYYYY??!??!?!?! FFS  cuz LLVM says so 
@@ -237,7 +237,8 @@ NotIfWhileStatement     : LBRACE M_REGULAR_SCOPE Statements RBRACE          {pop
 
 Call 	    : ID LPAREN ExpList RPAREN                                      {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);
                                                                                 $1->SetReg(midCode.GetRegFromIdName($1->GetValue()));
-                                                                                midCode.EmitCallFuncWithArgs($1, reg_arg_vector);
+                                                                                string newReg = midCode.EmitCallFuncWithArgs($1, reg_arg_vector);
+                                                                                $$->SetReg(newReg);
                                                                                 reg_arg_vector.clear();
                                                                             }                                     
             | ID LPAREN RPAREN                                              {checkAfterCallIfFuncExist($1->GetValue()); $$ = new Node (GetFunctionReturnTypeByName($1->GetValue()),$1->GetValue(), yylineno);
@@ -353,11 +354,18 @@ M_WHILE_STACK:        {loopNextListAndLable LoopWhile(lastLableSaved);
 //N M markers for BP
 MMMMMMMMMMMMMM :                   {$$ = new Node("NONE","NONE",yylineno); 
                                     string newLable = midCode.CreateNewLabel(); 
-                                    $$->SetLabel(newLable); 
-                                    lastLableSaved = newLable;}
+                                    $$->SetLabel(newLable);
+                                   }
+MMMMMMMMMMMMMM_WHILE_BFORE_BOOL:    {$$ = new Node("NONE","NONE",yylineno); 
+                                     string newLable = midCode.CreateNewLabel(); 
+                                     $$->SetLabel(newLable); 
+                                     lastLableSaved = newLable;
+                                    }
+
 
 NNNNNNNNNNNNNN :                   {$$ = new Node("NONE","NONE",yylineno); 
-                                    $$->MergeToNextList(midCode.CreateNewPlaceToPatch());}
+                                    $$->MergeToNextList(midCode.CreateNewPlaceToPatch());
+                                   }
 %%
 
 
