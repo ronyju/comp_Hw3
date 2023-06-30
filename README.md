@@ -2,7 +2,16 @@
 # Comp Hw5:
 
 ***test we need to debug:***
+int epicBool(bool a, bool d, bool c) {
+        return 1;
+}
 
+void main ()
+{
+        if (10 > epicBool(true, true, false)) {
+                int x = 1;
+        }
+}
 
 **what's left:**
 1. Override
@@ -12,8 +21,7 @@
 
 
 **tests_assina:**
-in tests_assina from 0-20 - PASS
-test 21 - the sad moment when I understood we must load and store. 
+in tests_assina PASS all but 48, 49, 55
 
 
 
