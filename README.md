@@ -19,6 +19,7 @@ void main() {
 5. Override
 6. Fix the bug - how to handle (bool a = true;)
 
+make sure you changed - EmitBoolAssign
 
 
 
