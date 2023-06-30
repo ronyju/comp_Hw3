@@ -150,7 +150,14 @@ OpenIfWhileStatement    : IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Exp
                                                                                                                                         midCode.Patch($9->GetLabel(),$6->GetTrueListToPatch()); // patching the true list of the boolean check to the begining of the Statement
                                                                                                                                         $$->MergeToNextList($6->GetFalseListToPatch());  // ClosedIfWhileStatment.next is now also respondible to patch the false list of the boolean check                       
                                                                                                                                         }    
-                        | IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL MMMMMMMMMMMMMM ClosedIfWhileStatment NNNNNNNNNNNNNN M_POP_IF_SCOPE ELSE M_ELSE_SCOPE MMMMMMMMMMMMMM OpenIfWhileStatement  NNNNNNNNNNNNNN    	{popScope();}
+                        | IF NNNNNNNNNNNNNN M_IF_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL MMMMMMMMMMMMMM ClosedIfWhileStatment NNNNNNNNNNNNNN M_POP_IF_SCOPE ELSE M_ELSE_SCOPE MMMMMMMMMMMMMM OpenIfWhileStatement  NNNNNNNNNNNNNN    	{popScope();
+                                                                                                                                                                                                                                                        // RONY - same as regular if else
+                                                                                                                                                                                                                                                        //$$->MergeToNextList($17->GetNextListToPatch()); // add the N address to the next list of the statment 
+                                                                                                                                                                                                                                                        //midCode.Patch($5->GetLabel(),$2->GetNextListToPatch()); //patching the start of the block to the first entry - WHYYYY??!??!?!?! FFS  cuz LLVM says so 
+                                                                                                                                                                                                                                                        //midCode.Patch($9->GetLabel(),$6->GetTrueListToPatch()); // patching the true list of the boolean check to the begining of the Statement
+                                                                                                                                                                                                                                                        //midCode.Patch($15->GetLabel(),$6->GetFalseListToPatch()); // patching the false list of the boolean check to the begining of the ELSE Statement
+                                                                                                                                                                                                                                                        //$$->MergeToNextList($11->GetNextListToPatch()); // patching the end of the true statment to be in the nextlist of the mother node
+                                                                                                                                                                                                                                                    }
                         | WHILE NNNNNNNNNNNNNN M_WHILE_SCOPE LPAREN MMMMMMMMMMMMMM Exp RPAREN M_CHECK_BOOL M_WHILE_STACK MMMMMMMMMMMMMM  OpenIfWhileStatement NNNNNNNNNNNNNN   {popScope();}                       
 
 
@@ -255,8 +262,21 @@ NumericExp  : LPAREN Exp RPAREN            {$$ = $2;}
                                                 $$->SetReg(midCode.AddetiveAndMultiplicativeEmit ($2->GetValue() , $1, $3, funcRetType));
                                             }                                    
 
-SingleExp   : ID                      	{ $1->SetReg(midCode.GetRegFromIdName($1->GetValue())); $$ = $1; midCode.loadBoolID($$, $1);} 
-            | Call                      {$$ = $1; midCode.EmitBoolFuncCall($$,$1);}                                      
+SingleExp   : ID                      	{   $1->SetReg(midCode.GetRegFromIdName($1->GetValue())); 
+                                            $$ = $1; 
+                                            if (midCode.GetTypeFromId($1->GetValue()) == "BOOL") {
+                                                int holeLine = midCode.loadBoolID($1->GetRegName());
+                                                $$->MergeToTrueList(makelist(make_pair(holeLine,FIRST)));
+                                                $$->MergeToFalseList(makelist(make_pair(holeLine,SECOND)));
+                                            }
+                                        } 
+            | Call                      {$$ = $1; 
+                                            int holeLine = midCode.EmitBoolFuncCall($1->GetValue(), $1->GetRegName());
+                                            if (holeLine != -1){
+                                                $$->MergeToTrueList(makelist(make_pair(holeLine,FIRST)));
+                                                $$->MergeToFalseList(makelist(make_pair(holeLine,SECOND)));
+                                            }
+                                        }                                      
             | NUM                       {$$ = $1;}                                          
             | NUM B                     {checkByteSize($1->GetValue()); $$ = $1; $$->SetType($2->GetType());}// $$ = new Node($2->GetType(), $1->GetValue(), yylineno); }                                              
             | STRING                    {$$ = $1;

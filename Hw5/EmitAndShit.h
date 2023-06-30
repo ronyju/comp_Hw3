@@ -538,7 +538,6 @@ public:
         return resultReg;
     }
 
-
     int EmitHardCodedBool() {
         return bufferPtr->emit("br label @");
     }
@@ -572,25 +571,38 @@ public:
     }
 
 
+
+int EmitLable(string res, string& regName, string& labelName, bool givenLable = false) {
+    // emiting the lable if res =true its the true lable if res = false its the false lable.
+    regName = GetRegName(bufferPtr->GetFreshVar());
+    if (!givenLable) {labelName = bufferPtr->genLabel();}
+    bufferPtr->emit(regName + " = add i1 0, " + res);
+    int HoleLine = bufferPtr->emit("br label @");
+    return HoleLine;
+}
+
+string EmitPhi(string trueHolderReg, string true_label, string falseHolderReg, string false_label) {
+    string phi = GetRegName(bufferPtr->GetFreshVar());
+    bufferPtr->emit(phi + " = phi i1 [" + trueHolderReg + ", %" + true_label + "], [" + falseHolderReg + ", %" + false_label + "]");
+    return phi;
+}
+
 string EmitBoolAssign(string varName, Node* value) // bool x = true;   - or -   x = true;
 {
-    //TODO : RONY OREN change this function !!!
-    int start = bufferPtr->emit("br label @");
+    int headLable = bufferPtr->emit("br label @");
 
-    string true_label = bufferPtr->genLabel();
-    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(start, FIRST)), true_label);
-    string bool_is_true = GetRegName(bufferPtr->GetFreshVar());
-    bufferPtr->emit(bool_is_true + " = add i1 0, true");
-    int return_true = bufferPtr->emit("br label @");
+    string trueLabel = bufferPtr->genLabel();
+    bufferPtr->bpatch(bufferPtr->makelist(make_pair(headLable, FIRST)), trueLabel);
 
-    string false_label = bufferPtr->genLabel();
-    string bool_is_false = GetRegName(bufferPtr->GetFreshVar());
-    bufferPtr->emit(bool_is_false + " = add i1 0, false");
-    int return_false = bufferPtr->emit("br label @");
+    string trueHolderReg;
+    int trueHoleLine = EmitLable ("true", trueHolderReg, trueLabel, true);
 
-    string phi = GetRegName(bufferPtr->GetFreshVar());
-    string result = bufferPtr->genLabel();
-    bufferPtr->emit(phi + " = phi i1 [" + bool_is_true + ", %" + true_label + "], [" + bool_is_false + ", %" + false_label +"]");
+    string falseLabel;
+    string falseHolderReg;
+    int falseHoleLine = EmitLable ("false", falseHolderReg, falseLabel);
+
+    string phiLable = bufferPtr->genLabel();
+    string phi = EmitPhi(trueHolderReg, trueLabel, falseHolderReg, falseLabel);
 
     string temp_var = GetRegName(bufferPtr->GetFreshVar());
     bufferPtr->emit(temp_var + " = zext i1 " + phi + " to i32");
@@ -609,38 +621,27 @@ string EmitBoolAssign(string varName, Node* value) // bool x = true;   - or -   
     }
     element->SetReg(GetRegName(idRegNum));
 
-    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(return_false, FIRST)), result);
-    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(return_true, FIRST)), result);
-    bufferPtr->bpatch(value->GetFalseListToPatch(), false_label);
-    bufferPtr->bpatch(value->GetTrueListToPatch(), true_label);
+    bufferPtr->bpatch(bufferPtr->makelist(make_pair(falseHoleLine, FIRST)), phiLable);
+    bufferPtr->bpatch(bufferPtr->makelist(make_pair(trueHoleLine, FIRST)), phiLable);
+    bufferPtr->bpatch(value->GetFalseListToPatch(), falseLabel);
+    bufferPtr->bpatch(value->GetTrueListToPatch(), trueLabel);
 
     return GetRegName(idRegNum);
 }
 
 
-
-void loadBoolID(Node* to, Node* id)
+int loadBoolID(string idRegName)
 {
-    //TODO : RONY OREN change this function !!!
-    string id_type = GetTypeFromId(id->GetValue());
-    if(id_type == "BOOL")
-    {
-        string var32 = id->GetRegName();
-        string var1 = GetRegName(bufferPtr->GetFreshVar());
-        bufferPtr->emit(var1 + " = trunc i32 " + var32 + " to i1");
-        string bool_value = GetRegName(bufferPtr->GetFreshVar());
-        bufferPtr->emit(bool_value + " = icmp eq i1 " + var1 + " , true");
-        int holeLine = bufferPtr->emit("br i1 " + bool_value + " , label @ , label @");
-        to->MergeToTrueList(bufferPtr->makelist(make_pair(holeLine,FIRST)));
-        to->MergeToFalseList(bufferPtr->makelist(make_pair(holeLine,SECOND)));
-    }
+    string truncReg = GetRegName(bufferPtr->GetFreshVar());
+    bufferPtr->emit(truncReg + " = trunc i32 " + idRegName + " to i1");
+    string boolReg = GetRegName(bufferPtr->GetFreshVar());
+    bufferPtr->emit(boolReg + " = icmp eq i1 " + truncReg + " , true");
+    int holeLine = bufferPtr->emit("br i1 " + boolReg + " , label @ , label @");
+    return holeLine;
 }
 
 
-
-void EmitBoolFuncCall(Node* to, Node* call) {
-        //TODO : RONY OREN change this function !!!
-    string funcName = call->GetValue();
+int EmitBoolFuncCall(string funcName,string funcReg) {
     string retType;
     bool found;
     SymbolTableElement *element = scopStack.SearchInAllScopesByName(funcName, &found);
@@ -650,13 +651,12 @@ void EmitBoolFuncCall(Node* to, Node* call) {
     retType = element->GetType().GetReturnType();
     if(retType == "BOOL")
     {
-        string compare = GetRegName(bufferPtr->GetFreshVar());
-        bufferPtr->emit(compare + " = icmp eq i1 " + call->GetRegName() + ", true"); //Yes? call->GetRegName()?
-        //std::cout << "RONY the holes came from EmitBoolFuncCall" <<std::endl;
-        int holeLine = bufferPtr->emit("br i1 " + compare + ", label @, label @");
-        to->MergeToTrueList(bufferPtr->makelist(make_pair(holeLine,FIRST)));
-        to->MergeToFalseList(bufferPtr->makelist(make_pair(holeLine,SECOND)));
+        string comReg = GetRegName(bufferPtr->GetFreshVar());
+        bufferPtr->emit(comReg + " = icmp eq i1 " + funcReg + ", true");
+        int holeLine = bufferPtr->emit("br i1 " + comReg + ", label @, label @");
+        return holeLine;
     }
+    return -1;
    
 }
 
@@ -672,28 +672,26 @@ void EmitReturn(string regName, string regType, Node* exp) {
     if (regType == "BOOL") { if (exp->IsTrueOrFalse()) {bufferPtr->emit("ret i1 " + regName);} else {returnBoolean(regName, exp);} }
 }
 
+
 void returnBoolean (string regName, Node* exp) {
-      //TODO : RONY OREN change this function !!!
-    string var1 = GetRegName(bufferPtr->GetFreshVar());
-    string true_label = bufferPtr->genLabel();
-    bufferPtr->emit(var1 + " = add i1 0, true");
-    int location1 = bufferPtr->emit("br label @");
+    string trueHolderReg;
+    string trueLabel;
+    int trueHoleLine = EmitLable ("true", trueHolderReg, trueLabel);
 
-    string var2 = GetRegName(bufferPtr->GetFreshVar());
-    string false_label = bufferPtr->genLabel();
-    bufferPtr->emit(var2 + " = add i1 0, false");
-    int location2 = bufferPtr->emit("br label @");
+    string falseLabel;
+    string falseHolderReg;
+    int falseHoleLine = EmitLable ("false", falseHolderReg, falseLabel);
 
-    string phi = GetRegName(bufferPtr->GetFreshVar());
+    
     string result = bufferPtr->genLabel();
-    bufferPtr->emit(phi + " = phi i1 [" + var1 + ", %" + true_label + "], [" + var2 + ", %" + false_label + "]");
+    string phi = EmitPhi(trueHolderReg, trueLabel, falseHolderReg, falseLabel);
 
     bufferPtr->emit("ret i1 " + phi);
 
-    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(location1, FIRST)), result);
-    bufferPtr->bpatch(CodeBuffer::makelist(make_pair(location2, FIRST)), result);
-    bufferPtr->bpatch(exp->GetTrueListToPatch(), true_label);
-    bufferPtr->bpatch(exp->GetFalseListToPatch(), false_label);
+    bufferPtr->bpatch(bufferPtr->makelist(make_pair(trueHoleLine, FIRST)), result);
+    bufferPtr->bpatch(bufferPtr->makelist(make_pair(falseHoleLine, FIRST)), result);
+    bufferPtr->bpatch(exp->GetTrueListToPatch(), trueLabel);
+    bufferPtr->bpatch(exp->GetFalseListToPatch(), falseLabel);
 }
 
 
